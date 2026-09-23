@@ -9,7 +9,7 @@ USAGE_STEPS = [
     "① スタッフ確認",
     "② 月間勤務条件入力",
     "③ 希望休入力",
-    "④ 日別必要人数・ロール入力",
+    "④ 日別最低人数・ロール入力",
     "⑤ 事前チェック",
     "⑥ 自動シフト生成",
     "⑦ 管理者確認",
@@ -26,7 +26,7 @@ MENU_PAGES = [
     ("pages/01_staff.py", "① スタッフ管理"),
     ("pages/02_monthly_conditions.py", "② 月間勤務条件"),
     ("pages/03_preferences.py", "③ 希望休入力"),
-    ("pages/04_requirements.py", "④ 日別必要人数"),
+    ("pages/04_requirements.py", "④ 日別最低人数"),
     ("pages/05_generate.py", "⑤ シフト生成"),
     ("pages/06_schedule.py", "⑥ シフト確認・確定"),
 ]

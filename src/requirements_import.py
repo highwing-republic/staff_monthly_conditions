@@ -13,7 +13,9 @@ from src.models import DailyRequirementInput, RoleRequirementInput, ValidationEr
 from src.month_utils import get_month_dates
 from src.validation import validate_daily_requirement
 
-REQUIRED_COLUMNS = ("日付", "必要人数")
+REQUIRED_BASE_COLUMNS = ("日付",)
+REQUIRED_TOTAL_STAFF_COLUMNS = ("最低人数", "必要人数")
+REQUIRED_COLUMNS = ("日付", "最低人数")
 OPTIONAL_COLUMNS = ("稼働率", "最大人数", "備考")
 
 
@@ -142,15 +144,20 @@ def normalize_requirements(
 ) -> tuple[list[DailyRequirementInput], list[RoleRequirementInput], list[ValidationError]]:
     """CSV/Excel由来のDataFrameを検証しながらモデルへ変換する.
 
-    列: 日付(必須), 稼働率, 必要人数(必須), 最大人数, 備考, ロール別必要人数(任意, role_codeまたはrole_name)
+    列: 日付(必須), 稼働率, 最低人数(必須, 旧名「必要人数」も許容), 最大人数, 備考,
+    ロール別必要人数(任意, role_codeまたはrole_name)
     - 日付は対象月に含まれること。重複日はエラー。
+    - 最低人数列は「最低人数」「必要人数」のどちらでもよい。両方ある場合は「最低人数」を優先する。
     - 行ごとの検証エラーには行番号を含める。
     - エラーを1件でも返した場合、呼び出し側は保存しない。
     """
     errors: list[ValidationError] = []
 
     columns = list(df.columns)
-    missing = [c for c in REQUIRED_COLUMNS if c not in columns]
+    missing = [c for c in REQUIRED_BASE_COLUMNS if c not in columns]
+    total_staff_col = next((c for c in REQUIRED_TOTAL_STAFF_COLUMNS if c in columns), None)
+    if total_staff_col is None:
+        missing.append("最低人数")
     if missing:
         errors.append(
             ValidationError(
@@ -203,12 +210,12 @@ def normalize_requirements(
             continue
         seen_dates[work_date] = row_no
 
-        required_total, required_ok = _to_required_int(row.get("必要人数"))
+        required_total, required_ok = _to_required_int(row.get(total_staff_col))
         if not required_ok:
             errors.append(
                 ValidationError(
                     code="REQUIREMENT_IMPORT_REQUIRED_INVALID",
-                    message=f"{row_no}行目: 必要人数は0以上の整数で入力してください。",
+                    message=f"{row_no}行目: 最低人数は0以上の整数で入力してください。",
                     work_date=work_date,
                 )
             )

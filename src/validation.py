@@ -274,7 +274,7 @@ def validate_daily_requirement(
     req: DailyRequirementInput,
     role_requirements: list[RoleRequirementInput],
 ) -> list[ValidationError]:
-    """日別必要人数・ロールの検証（§23, §24, PC07-PC09）."""
+    """日別最低人数・ロール別必要人数の検証（§23, §24, PC07-PC09）."""
     errors: list[ValidationError] = []
     work_date = req.work_date
 
@@ -294,7 +294,7 @@ def validate_daily_requirement(
         errors.append(
             ValidationError(
                 code=REQUIREMENT_REQUIRED_TOTAL_STAFF_INVALID,
-                message="必要人数は0以上の整数で入力してください。",
+                message="最低人数は0以上の整数で入力してください。",
                 work_date=work_date,
                 field_name="required_total_staff",
             )
@@ -317,7 +317,7 @@ def validate_daily_requirement(
         errors.append(
             ValidationError(
                 code=REQUIREMENT_REQUIRED_EXCEEDS_MAX,
-                message="必要人数が最大人数を超えています。",
+                message="最低人数が最大人数を超えています。",
                 work_date=work_date,
                 field_name="required_total_staff",
             )
@@ -363,7 +363,7 @@ def validate_daily_requirement(
             errors.append(
                 ValidationError(
                     code=REQUIREMENT_ROLE_SUM_EXCEEDS_REQUIRED,
-                    message="ロール別必要人数の合計が必要人数を超えています。",
+                    message="ロール別必要人数の合計が最低人数を超えています。",
                     work_date=work_date,
                 )
             )

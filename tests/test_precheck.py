@@ -130,7 +130,7 @@ def test_pc05_shortage_message():
     assert codes(result) == ["PC05"]
     err = result.errors[0]
     assert err.work_date == "2026-02-10"
-    assert err.message == "2月10日\n必要人数3\n勤務可能2\n\n1名不足しています。"
+    assert err.message == "2月10日\n最低人数3\n勤務可能2\n\n1名不足しています。"
 
 
 @pytest.mark.parametrize(

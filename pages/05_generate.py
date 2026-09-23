@@ -4,6 +4,7 @@ import streamlit as st
 
 from src import repositories as repo
 from src import services
+from src.constants import STAGES, STAGE_LABELS
 from src.month_utils import get_month_dates
 from src.ui_common import confirmed_banner, open_connection, select_year_month, show_errors
 
@@ -31,7 +32,7 @@ total_days = len(get_month_dates(year_month))
 col1, col2, col3 = st.columns(3)
 col1.metric("有効スタッフ数", len(active_staff))
 col2.metric("月間勤務条件 入力済み", f"{len(conditions)} / {len(active_staff)}")
-col3.metric("日別必要人数 入力済み", f"{len(requirements)} / {total_days}")
+col3.metric("日別最低人数 入力済み", f"{len(requirements)} / {total_days}")
 
 existing_month = repo.get_schedule_month(conn, year_month)
 if existing_month is not None:
@@ -82,7 +83,7 @@ if st.button("シフト生成を実行", type="primary", disabled=is_confirmed):
                 st.error("現在の条件ではシフトを作成できません。")
                 st.markdown(
                     "以下を確認してください。\n\n"
-                    "- 必要人数\n"
+                    "- 最低人数\n"
                     "- 必要ロール\n"
                     "- 絶対休み\n"
                     "- 通常勤務可能曜日\n"
@@ -95,15 +96,21 @@ if st.button("シフト生成を実行", type="primary", disabled=is_confirmed):
                 st.warning("時間内に解を見つけられませんでした。既存のシフトデータは変更していません。")
             else:
                 st.success("シフトを保存しました。" if outcome.saved else "シフトを生成しました。")
-                st.caption(f"完了ステージ: {result.completed_stage} / 4")
+                st.caption(f"完了ステージ: {result.completed_stage}/5")
 
                 def _fmt(value):
                     return "—" if value is None else value
 
-                obj_col1, obj_col2, obj_col3, obj_col4 = st.columns(4)
-                obj_col1.metric("過剰配置人数", _fmt(result.objective_overstaff))
-                obj_col2.metric("所定勤務日数との差", _fmt(result.objective_target_deviation))
-                obj_col3.metric("できれば休み違反", _fmt(result.objective_prefer_off))
-                obj_col4.metric("できれば勤務未反映", _fmt(result.objective_prefer_work))
+                stage_values = {
+                    1: result.objective_target_deviation,
+                    2: result.objective_max_deviation,
+                    3: result.objective_max_overstaff,
+                    4: result.objective_prefer_off,
+                    5: result.objective_prefer_work,
+                }
+                obj_cols = st.columns(len(STAGES) + 1)
+                for col, stage in zip(obj_cols, STAGES):
+                    col.metric(f"{stage}. {STAGE_LABELS[stage]}", _fmt(stage_values[stage]))
+                obj_cols[-1].metric("最低人数を超える出勤（合計）", _fmt(result.objective_overstaff))
 
                 st.info("結果は「⑦管理者確認」（06_schedule）で確認・編集できます。")

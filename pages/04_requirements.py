@@ -1,4 +1,4 @@
-"""日別必要人数・ロール入力画面（T68〜T71）."""
+"""日別最低人数・ロール入力画面（T68〜T71）."""
 
 import pandas as pd
 import streamlit as st
@@ -15,8 +15,11 @@ from src.requirements_import import (
 from src.ui_common import WEEKDAY_LABELS_JA, open_connection, select_year_month
 from src.validation import validate_daily_requirement
 
-st.set_page_config(page_title="日別必要人数入力", layout="wide")
-st.title("④ 日別必要人数・ロール入力")
+st.set_page_config(page_title="日別最低人数入力", layout="wide")
+st.title("④ 日別最低人数・ロール入力")
+st.caption(
+    "最低人数＝これより少なくしない人数。所定勤務日数に合わせて最大人数まで増えることがあります。0＝休館日。"
+)
 
 conn = open_connection()
 
@@ -44,7 +47,7 @@ for d in dates:
         "日付": d,
         "曜日": WEEKDAY_LABELS_JA[weekday_index(d)],
         "稼働率": req.occupancy_rate if req else None,
-        "必要人数": req.required_total_staff if req else 0,
+        "最低人数": req.required_total_staff if req else 0,
         "最大人数": req.max_total_staff if req else None,
         "備考": req.note if req else None,
         "未保存": req is None,
@@ -55,13 +58,13 @@ for d in dates:
 
 df = pd.DataFrame(rows)
 if df["未保存"].any():
-    st.warning(f"未保存の日付が{int(df['未保存'].sum())}件あります（必要人数は既定値0で表示）。")
+    st.warning(f"未保存の日付が{int(df['未保存'].sum())}件あります（最低人数は既定値0で表示）。")
 
 column_config = {
     "日付": st.column_config.TextColumn(disabled=True),
     "曜日": st.column_config.TextColumn(disabled=True),
     "稼働率": st.column_config.NumberColumn(min_value=0.0, step=0.05),
-    "必要人数": st.column_config.NumberColumn(min_value=0, step=1, required=True),
+    "最低人数": st.column_config.NumberColumn(min_value=0, step=1, required=True),
     "最大人数": st.column_config.NumberColumn(min_value=0, step=1),
     "備考": st.column_config.TextColumn(),
     "未保存": None,
@@ -101,7 +104,7 @@ if st.button("保存", type="primary"):
         ]
         req = DailyRequirementInput(
             work_date=work_date,
-            required_total_staff=_clean_int(row["必要人数"]) or 0,
+            required_total_staff=_clean_int(row["最低人数"]) or 0,
             max_total_staff=_clean_int(row["最大人数"]),
             occupancy_rate=_clean_float(row["稼働率"]),
             note=(row["備考"] or None) if isinstance(row["備考"], str) else None,
@@ -129,7 +132,7 @@ if st.button("保存", type="primary"):
 
 st.subheader("CSV / Excel 取り込み")
 st.caption(
-    "列: 日付, 稼働率(任意), 必要人数, 最大人数(任意), ロール別必要人数(role_codeまたはロール名, 任意), 備考(任意)。"
+    "列: 日付, 稼働率(任意), 最低人数, 最大人数(任意), ロール別必要人数(role_codeまたはロール名, 任意), 備考(任意)。"
     "全件エラーがない場合のみ保存します。"
 )
 
@@ -159,7 +162,7 @@ if uploaded is not None:
                     {
                         "日付": r.work_date,
                         "稼働率": r.occupancy_rate,
-                        "必要人数": r.required_total_staff,
+                        "最低人数": r.required_total_staff,
                         "最大人数": r.max_total_staff,
                         "備考": r.note,
                     }

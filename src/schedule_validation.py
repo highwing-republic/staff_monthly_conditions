@@ -94,7 +94,7 @@ def check_staffing(
     scheduler_input: SchedulerInput,
     assignments: list[AssignmentResult],
 ) -> list[ValidationError]:
-    """HC03: 必要人数未満 / HC04: 必要人数0の日に出勤者がいる."""
+    """HC03: 最低人数未満 / HC04: 最低人数0の日に出勤者がいる."""
     working_cells = _working_cells(scheduler_input, assignments)
     active_ids = {s.staff_id for s in scheduler_input.staff if s.active}
     errors: list[ValidationError] = []
@@ -106,7 +106,7 @@ def check_staffing(
                 errors.append(
                     ValidationError(
                         "HC04",
-                        f"{_format_date(req.work_date)}：必要人数0の日に"
+                        f"{_format_date(req.work_date)}：最低人数0の日に"
                         f"{actual}名が出勤しています。",
                         work_date=req.work_date,
                     )
@@ -116,7 +116,7 @@ def check_staffing(
             errors.append(
                 ValidationError(
                     "HC03",
-                    f"{_format_date(req.work_date)}：必要人数{req.required_total_staff}"
+                    f"{_format_date(req.work_date)}：最低人数{req.required_total_staff}"
                     f"に対して出勤{actual}（{shortage}名不足）",
                     work_date=req.work_date,
                 )

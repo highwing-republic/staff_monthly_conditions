@@ -59,7 +59,7 @@ def check_missing_data(scheduler_input: SchedulerInput) -> list[ValidationError]
             errors.append(
                 ValidationError(
                     "PC02",
-                    f"{_format_date(work_date)}の必要人数が入力されていません。",
+                    f"{_format_date(work_date)}の最低人数が入力されていません。",
                     work_date=work_date,
                 )
             )
@@ -95,7 +95,7 @@ def check_missing_data(scheduler_input: SchedulerInput) -> list[ValidationError]
 
 
 # ---------------------------------------------------------------------------
-# T25 PC05 必要人数 > 勤務可能人数
+# T25 PC05 最低人数 > 勤務可能人数
 # ---------------------------------------------------------------------------
 
 
@@ -111,7 +111,7 @@ def check_daily_staffing(scheduler_input: SchedulerInput) -> list[ValidationErro
                 ValidationError(
                     "PC05",
                     f"{_format_date(req.work_date)}\n"
-                    f"必要人数{req.required_total_staff}\n"
+                    f"最低人数{req.required_total_staff}\n"
                     f"勤務可能{available}\n\n"
                     f"{shortage}名不足しています。",
                     work_date=req.work_date,
@@ -188,7 +188,7 @@ def _check_requirement_conflicts(scheduler_input: SchedulerInput) -> list[Valida
                 ValidationError(
                     "PC07",
                     f"{label}：ロール別必要人数の合計({total_roles})が"
-                    f"必要人数({req.required_total_staff})を超えています。",
+                    f"最低人数({req.required_total_staff})を超えています。",
                     work_date=req.work_date,
                 )
             )
@@ -198,7 +198,7 @@ def _check_requirement_conflicts(scheduler_input: SchedulerInput) -> list[Valida
             errors.append(
                 ValidationError(
                     "PC08",
-                    f"{label}：必要人数({req.required_total_staff})が"
+                    f"{label}：最低人数({req.required_total_staff})が"
                     f"最大人数({req.max_total_staff})を超えています。",
                     work_date=req.work_date,
                 )
@@ -311,7 +311,7 @@ def _check_lock_conflicts(scheduler_input: SchedulerInput) -> list[ValidationErr
             errors.append(
                 ValidationError(
                     "PC16",
-                    f"{label}：必要人数0の日に固定出勤があります。",
+                    f"{label}：最低人数0の日に固定出勤があります。",
                     staff_id=lock.staff_id,
                     work_date=lock.work_date,
                 )
