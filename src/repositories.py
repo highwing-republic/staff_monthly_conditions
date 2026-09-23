@@ -15,6 +15,7 @@ from src.constants import (
     SOURCE_OPTIMIZED,
 )
 from src.models import (
+    DailyRequirementInput,
     LockedAssignmentInput,
     MonthlyConditionInput,
     PreferenceInput,
@@ -295,9 +296,9 @@ def delete_preference(conn: sqlite3.Connection, staff_id: int, work_date: str) -
 # ---------------------------------------------------------------------------
 
 
-def get_daily_requirements(conn: sqlite3.Connection, year_month: str):
-    from src.models import DailyRequirementInput
-
+def get_daily_requirements(
+    conn: sqlite3.Connection, year_month: str
+) -> list[DailyRequirementInput]:
     dates = get_month_dates(year_month)
     first, last = dates[0], dates[-1]
     rows = conn.execute(
@@ -317,7 +318,7 @@ def get_daily_requirements(conn: sqlite3.Connection, year_month: str):
     ]
 
 
-def save_daily_requirement(conn: sqlite3.Connection, req) -> None:
+def save_daily_requirement(conn: sqlite3.Connection, req: DailyRequirementInput) -> None:
     with conn:
         conn.execute(
             """
@@ -334,7 +335,9 @@ def save_daily_requirement(conn: sqlite3.Connection, req) -> None:
         )
 
 
-def save_daily_requirements(conn: sqlite3.Connection, reqs: list) -> None:
+def save_daily_requirements(
+    conn: sqlite3.Connection, reqs: list[DailyRequirementInput]
+) -> None:
     """全件成功時のみ保存する一括upsert（T70で使用）."""
     with conn:
         for req in reqs:
