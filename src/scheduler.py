@@ -5,8 +5,13 @@
     build_model()
         _create_variables()
         _add_*_constraints()      HC01〜HC12
-        _create_*_terms()         Stage 1〜4 の目的関数項
+        _create_*_terms()         Stage 1〜5 の目的関数項
     solve_lexicographically()     段階最適化（§36〜§38）
+
+v1.4（§31改訂）: 必要人数は「最低人数」（Hard下限）となり、所定勤務日数を優先して
+最大人数まで超えてよい。優先順位は
+    1 所定勤務日数との差の合計 → 2 差の最大値（公平化） → 3 日別超過人数の最大値（平準化）
+    → 4 PREFER_OFF違反 → 5 PREFER_WORK未反映
 """
 
 import time
@@ -25,6 +30,12 @@ from src.constants import (
     SOLVER_STATUS_INFEASIBLE,
     SOLVER_STATUS_OPTIMAL,
     SOLVER_STATUS_UNKNOWN,
+    STAGE_MAX_DEVIATION,
+    STAGE_MAX_OVERSTAFF,
+    STAGE_PREFER_OFF,
+    STAGE_PREFER_WORK,
+    STAGE_TARGET_DEVIATION,
+    STAGES,
     TOTAL_SOLVE_TIME_LIMIT_SECONDS,
 )
 from src.models import (
@@ -39,8 +50,6 @@ from src.models import (
 from src.month_utils import get_month_dates, round_half_up_workdays, weekday_index
 
 Key = tuple[int, str]  # (staff_id, work_date)
-
-STAGES = (1, 2, 3, 4)
 
 _STATUS_NAMES = {
     cp_model.OPTIMAL: SOLVER_STATUS_OPTIMAL,
@@ -66,20 +75,27 @@ class ScheduleModel:
     preferences: dict[Key, str] = field(default_factory=dict)
     locks: dict[Key, bool] = field(default_factory=dict)
 
-    # Stage 1〜4 の目的関数（各項の合計を最小化）
-    overstaff_terms: list = field(default_factory=list)
-    target_deviation_terms: list = field(default_factory=list)
+    # 目的関数の項
+    overstaff_terms: list = field(default_factory=list)  # 日別: 出勤 - 最低人数
+    target_deviation_terms: list = field(default_factory=list)  # スタッフ別: |出勤日数 - 目標日数|
     prefer_off_terms: list = field(default_factory=list)
     prefer_work_terms: list = field(default_factory=list)
+    deviation_upper_bound: int = 0  # target_deviation_terms の定義域上限の最大値
+    max_deviation: cp_model.IntVar | None = None  # max(target_deviation_terms)
+    max_overstaff: cp_model.IntVar | None = None  # max(overstaff_terms)
 
     def stage_objective(self, stage: int) -> cp_model.LinearExpr:
-        terms = {
-            1: self.overstaff_terms,
-            2: self.target_deviation_terms,
-            3: self.prefer_off_terms,
-            4: self.prefer_work_terms,
-        }[stage]
-        return cp_model.LinearExpr.sum(terms)
+        if stage == STAGE_TARGET_DEVIATION:
+            return cp_model.LinearExpr.sum(self.target_deviation_terms)
+        if stage == STAGE_MAX_DEVIATION:
+            return _as_expr(self.max_deviation)
+        if stage == STAGE_MAX_OVERSTAFF:
+            return _as_expr(self.max_overstaff)
+        if stage == STAGE_PREFER_OFF:
+            return cp_model.LinearExpr.sum(self.prefer_off_terms)
+        if stage == STAGE_PREFER_WORK:
+            return cp_model.LinearExpr.sum(self.prefer_work_terms)
+        raise ValueError(f"unknown stage: {stage!r}")
 
     def day_total(self, work_date: str) -> cp_model.LinearExpr:
         return cp_model.LinearExpr.sum([self.x[s.staff_id, work_date] for s in self.staff])
@@ -150,6 +166,8 @@ def build_model(scheduler_input: SchedulerInput) -> ScheduleModel:
 
     _create_overstaff_terms(sm)
     _create_target_deviation_terms(sm)
+    _create_max_deviation_term(sm)
+    _create_max_overstaff_term(sm)
     _create_prefer_off_terms(sm)
     _create_prefer_work_terms(sm)
     return sm
@@ -271,7 +289,7 @@ def _add_lock_constraints(sm: ScheduleModel) -> None:
 
 
 def _create_overstaff_terms(sm: ScheduleModel) -> None:
-    """Stage 1: overstaff[d] = actual_staff[d] - required_total_staff[d].
+    """overstaff[d] = actual_staff[d] - required_total_staff[d]（最低人数を超える人数）.
 
     HC03/HC04 により各項は常に0以上。下限0を変数の定義域で明示しないと
     CP-SAT（num_workers=1）が目的値の下界を証明できず時間切れになるため、変数として持つ。
@@ -285,7 +303,7 @@ def _create_overstaff_terms(sm: ScheduleModel) -> None:
 
 
 def _create_target_deviation_terms(sm: ScheduleModel) -> None:
-    """Stage 2: |actual_workdays - target_workdays| をスタッフごとに作る."""
+    """Stage 1: |actual_workdays - target_workdays| をスタッフごとに作る."""
     days = len(sm.dates)
     for staff in sm.staff:
         cond = sm.conditions.get(staff.staff_id)
@@ -294,22 +312,50 @@ def _create_target_deviation_terms(sm: ScheduleModel) -> None:
         target_workdays = round_half_up_workdays(
             cond.target_monthly_minutes, staff.daily_work_minutes
         )
-        deviation = sm.model.new_int_var(
-            0, max(days, target_workdays), f"deviation_{staff.staff_id}"
-        )
+        upper_bound = max(days, target_workdays)
+        sm.deviation_upper_bound = max(sm.deviation_upper_bound, upper_bound)
+        deviation = sm.model.new_int_var(0, upper_bound, f"deviation_{staff.staff_id}")
         sm.model.add_abs_equality(deviation, sm.actual_workdays(staff) - target_workdays)
         sm.target_deviation_terms.append(deviation)
 
 
+def _create_max_deviation_term(sm: ScheduleModel) -> None:
+    """Stage 2: 目標日数との差が最も大きいスタッフの差（不足・超過を均等に分ける）."""
+    sm.max_deviation = _new_max_var(
+        sm, sm.target_deviation_terms, sm.deviation_upper_bound, "max_deviation"
+    )
+
+
+def _create_max_overstaff_term(sm: ScheduleModel) -> None:
+    """Stage 3: 最低人数を超える人数が最も多い日の超過人数（余剰人員を日ごとに平準化）."""
+    # overstaff[d] の定義域上限は len(staff) - required ≤ len(staff)
+    sm.max_overstaff = _new_max_var(sm, sm.overstaff_terms, len(sm.staff), "max_overstaff")
+
+
+def _new_max_var(
+    sm: ScheduleModel, terms: list, upper_bound: int, name: str
+) -> cp_model.IntVar | None:
+    """max(terms) を表す変数. upper_bound は各項の定義域上限以上とし、実行可能解を削らない."""
+    if not terms:
+        return None
+    max_var = sm.model.new_int_var(0, max(upper_bound, 0), name)
+    sm.model.add_max_equality(max_var, terms)
+    return max_var
+
+
+def _as_expr(var: cp_model.IntVar | None) -> cp_model.LinearExpr:
+    return cp_model.LinearExpr.sum([] if var is None else [var])
+
+
 def _create_prefer_off_terms(sm: ScheduleModel) -> None:
-    """Stage 3: PREFER_OFF なのに出勤した件数."""
+    """Stage 4: PREFER_OFF なのに出勤した件数."""
     for key, preference_type in sorted(sm.preferences.items()):
         if preference_type == PREFERENCE_PREFER_OFF:
             sm.prefer_off_terms.append(sm.x[key])
 
 
 def _create_prefer_work_terms(sm: ScheduleModel) -> None:
-    """Stage 4: PREFER_WORK なのに休日になった件数."""
+    """Stage 5: PREFER_WORK なのに休日になった件数."""
     for key, preference_type in sorted(sm.preferences.items()):
         if preference_type == PREFERENCE_PREFER_WORK:
             sm.prefer_work_terms.append(1 - sm.x[key])
@@ -331,7 +377,7 @@ def solve_lexicographically(
     time_limit_seconds: float = TOTAL_SOLVE_TIME_LIMIT_SECONDS,
     started_at: float | None = None,
 ) -> SchedulerResult:
-    """Stage 1→4 の段階最適化. 時間制限は4 Stage合計（§38.1）.
+    """Stage 1→5 の段階最適化. 時間制限は全Stage合計（§38.1）.
 
     sm.model に目的値の等式制約・hintを追加していくため、ScheduleModel は1回限り使用する。
     """
@@ -375,25 +421,37 @@ def solve_lexicographically(
             continue
 
         stage_results.append(StageObjectiveResult(stage, status))
-        if stage == 1:
+        if stage == STAGE_TARGET_DEVIATION:
             # §37 / §38.3: Hard Constraintを満たす解が未確認 → シフトを返さない
             return SchedulerResult(status=status, stage_results=stage_results)
-        # §38.3: Stage 2〜4 が解なし → 直前Stageの解へフォールバック
+        # §38.3: Stage 2以降が解なし → 直前Stageの解へフォールバック
         all_optimal = False
         break
 
     overall = (
-        SOLVER_STATUS_OPTIMAL if all_optimal and completed_stage == 4 else SOLVER_STATUS_FEASIBLE
+        SOLVER_STATUS_OPTIMAL
+        if all_optimal and completed_stage == len(STAGES)
+        else SOLVER_STATUS_FEASIBLE
     )
     return SchedulerResult(
         status=overall,
         assignments=_to_assignments(sm, solution),
         completed_stage=completed_stage,
-        objective_overstaff=objectives.get(1),
-        objective_target_deviation=objectives.get(2),
-        objective_prefer_off=objectives.get(3),
-        objective_prefer_work=objectives.get(4),
+        objective_overstaff=_total_overstaff(sm, solution),
+        objective_target_deviation=objectives.get(STAGE_TARGET_DEVIATION),
+        objective_prefer_off=objectives.get(STAGE_PREFER_OFF),
+        objective_prefer_work=objectives.get(STAGE_PREFER_WORK),
         stage_results=stage_results,
+        objective_max_deviation=objectives.get(STAGE_MAX_DEVIATION),
+        objective_max_overstaff=objectives.get(STAGE_MAX_OVERSTAFF),
+    )
+
+
+def _total_overstaff(sm: ScheduleModel, solution: dict[Key, bool]) -> int:
+    """解の「最低人数を超える出勤」合計（最適化対象ではなく表示用の実績値）."""
+    return sum(
+        sum(solution[s.staff_id, work_date] for s in sm.staff) - req.required_total_staff
+        for work_date, req in sm.requirements.items()
     )
 
 

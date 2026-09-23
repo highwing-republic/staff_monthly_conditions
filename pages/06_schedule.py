@@ -10,6 +10,8 @@ from src.constants import (
     PREFERENCE_PREFER_OFF,
     PREFERENCE_PREFER_WORK,
     PREFERENCE_UNAVAILABLE,
+    STAGES,
+    STAGE_LABELS,
 )
 from src.month_utils import get_month_dates, round_half_up_workdays, weekday_index
 from src.ui_common import WEEKDAY_LABELS_JA, open_connection, select_year_month, show_errors
@@ -28,7 +30,30 @@ if schedule_month is None:
 
 is_confirmed = schedule_month.status == "CONFIRMED"
 if is_confirmed:
-    st.info("この月は確定済みです（編集不可）")
+    st.info("この月は確定済みです（編集不可）。再編集するにはページ下部の「確定」から確定を解除してください。")
+
+# ---------------------------------------------------------------------------
+# Solver結果
+# ---------------------------------------------------------------------------
+
+st.subheader("Solver結果")
+
+
+def _fmt_objective(value):
+    return "—" if value is None else value
+
+
+_stage_values = {
+    1: schedule_month.objective_target_deviation,
+    2: schedule_month.objective_max_deviation,
+    3: schedule_month.objective_max_overstaff,
+    4: schedule_month.objective_prefer_off,
+    5: schedule_month.objective_prefer_work,
+}
+_obj_cols = st.columns(len(STAGES) + 1)
+for _col, _stage in zip(_obj_cols, STAGES):
+    _col.metric(f"{_stage}. {STAGE_LABELS[_stage]}", _fmt_objective(_stage_values[_stage]))
+_obj_cols[-1].metric("最低人数を超える出勤（合計）", _fmt_objective(schedule_month.objective_overstaff))
 
 dates = get_month_dates(year_month)
 staff_list = [s for s in repo.list_staff(conn, include_inactive=True) if s.active]
@@ -117,7 +142,7 @@ for d in dates:
     }
     row = {
         "日付": _col_label(d),
-        "必要": req.required_total_staff if req else None,
+        "最低": req.required_total_staff if req else None,
         "最大": req.max_total_staff if req else None,
         "出勤": len(working_ids),
     }
@@ -299,6 +324,21 @@ st.subheader("確定")
 
 if is_confirmed:
     st.caption(f"確定日時: {schedule_month.confirmed_at}")
+    with st.expander("確定を解除して再編集する"):
+        st.warning(
+            "確定を解除すると下書きに戻り、編集・固定・再計算ができるようになります。"
+            "勤務内容と固定はそのまま残ります。"
+            "確定時にダウンロードしたExcelは、解除前の確定記録として保管してください。"
+        )
+        agreed = st.checkbox("確定を解除することを確認しました", key="unconfirm_agree")
+        if st.button("確定を解除する", disabled=not agreed):
+            try:
+                services.unconfirm_month(conn, year_month)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.success("確定を解除しました。再編集できます。")
+                st.rerun()
 else:
     if st.button("この月のシフトを確定する", type="primary"):
         try:

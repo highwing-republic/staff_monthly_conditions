@@ -280,7 +280,7 @@ def test_daily_sheet_headers_and_role_columns():
     ws = wb[_SHEET_DAILY]
 
     headers = [ws.cell(row=1, column=c).value for c in range(1, ws.max_column + 1)]
-    assert headers[:6] == ["日付", "曜日", "必要人数", "最大人数", "出勤人数", "過不足"]
+    assert headers[:6] == ["日付", "曜日", "最低人数", "最大人数", "出勤人数", "過不足"]
     assert "リーダー（必要）" in headers
     assert "リーダー（出勤）" in headers
     assert "チェッカー（必要）" in headers
@@ -316,7 +316,7 @@ def test_daily_sheet_row_values_and_role_counts():
     row = 2
     assert ws.cell(row=row, column=1).value == day1
     assert ws.cell(row=row, column=2).value == "木"
-    assert ws.cell(row=row, column=3).value == 2  # 必要人数
+    assert ws.cell(row=row, column=3).value == 2  # 最低人数
     assert ws.cell(row=row, column=4).value == 3  # 最大人数
     assert ws.cell(row=row, column=5).value == 2  # 出勤人数
     assert ws.cell(row=row, column=6).value == 0  # 過不足 = 2-2
@@ -334,7 +334,7 @@ def test_daily_sheet_row_values_and_role_counts():
     assert ws.cell(row=row, column=cleaner_att_col).value == 1
     assert ws.cell(row=row, column=note_col).value == "繁忙期"
 
-    # 2日目は daily_requirements が無い -> 必要人数/最大人数/過不足はブランク
+    # 2日目は daily_requirements が無い -> 最低人数/最大人数/過不足はブランク
     row2 = 3
     assert ws.cell(row=row2, column=3).value is None
     assert ws.cell(row=row2, column=4).value is None

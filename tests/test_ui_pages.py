@@ -232,3 +232,30 @@ def test_schedule_page_renders_and_confirms_after_generation(db_path):
     assert not at2.exception
     edit_forms = [f for f in at2.get("form") if "manual_edit_form" in f.key]
     assert edit_forms == []
+
+
+def test_schedule_page_unconfirm_restores_editing(db_path):
+    _seed_staff_and_month(db_path)
+    conn = get_connection(str(db_path))
+    assert services.generate_and_save(conn, YM).saved
+    assert services.confirm_month(conn, YM).confirmed
+    conn.close()
+
+    at = AppTest.from_file(_page("pages/06_schedule.py"), default_timeout=30)
+    at.run()
+    assert not at.exception
+    button = [b for b in at.button if b.label == "確定を解除する"][0]
+    assert button.disabled  # 確認チェック前は押せない
+
+    at.checkbox(key="unconfirm_agree").check().run()
+    [b for b in at.button if b.label == "確定を解除する"][0].click().run()
+    assert not at.exception
+
+    conn = get_connection(str(db_path))
+    assert repo.get_schedule_month(conn, YM).status == "DRAFT"
+    conn.close()
+
+    at2 = AppTest.from_file(_page("pages/06_schedule.py"), default_timeout=30)
+    at2.run()
+    assert not at2.exception
+    assert [f for f in at2.get("form") if "manual_edit_form" in f.key]

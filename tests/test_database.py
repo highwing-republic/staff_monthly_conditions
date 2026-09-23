@@ -104,6 +104,8 @@ def test_schedule_months_columns(conn):
         "objective_target_deviation",
         "objective_prefer_off",
         "objective_prefer_work",
+        "objective_max_deviation",
+        "objective_max_overstaff",
         "generated_at",
         "confirmed_at",
     ]
@@ -326,6 +328,39 @@ def test_migrate_adds_skill_level_default_3_to_existing_rows():
         ("山田", 1, 480, 5, 1, 3),
         ("鈴木", 3, 360, 4, 0, 3),
     ]
+    conn.close()
+
+
+def test_migrate_adds_v14_objective_columns_to_existing_schedule_months():
+    """v1.4: 既存の schedule_months に目的値列を追加し、既存行は維持する（冪等）."""
+    conn = get_connection(":memory:")
+    conn.execute(
+        """
+        CREATE TABLE schedule_months (
+            year_month TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            solver_status TEXT NULL,
+            objective_overstaff INTEGER NULL,
+            objective_target_deviation INTEGER NULL,
+            objective_prefer_off INTEGER NULL,
+            objective_prefer_work INTEGER NULL,
+            generated_at TEXT NULL,
+            confirmed_at TEXT NULL
+        )
+        """
+    )
+    conn.execute(
+        "INSERT INTO schedule_months (year_month, status, objective_overstaff) "
+        "VALUES ('2026-10', 'DRAFT', 5)"
+    )
+    initialize_database(conn)
+    initialize_database(conn)
+
+    columns = _columns(conn, "schedule_months")
+    assert {"objective_max_deviation", "objective_max_overstaff"} <= set(columns)
+    row = conn.execute("SELECT * FROM schedule_months").fetchone()
+    assert (row["year_month"], row["objective_overstaff"]) == ("2026-10", 5)
+    assert row["objective_max_deviation"] is None
     conn.close()
 
 

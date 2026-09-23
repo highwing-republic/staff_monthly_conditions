@@ -141,6 +141,16 @@ def confirm_month(conn: sqlite3.Connection, year_month: str) -> ConfirmOutcome:
     return ConfirmOutcome(confirmed=True)
 
 
+def unconfirm_month(conn: sqlite3.Connection, year_month: str) -> None:
+    """確定を解除して再編集できる状態（DRAFT）に戻す（v1.5 §48）.
+
+    勤務データ・固定セルはそのまま残る。確定時にダウンロードしたExcelは別途保管すること（§49）。
+    """
+    if not repo.is_month_confirmed(conn, year_month):
+        raise ValueError(f"{year_month} は確定されていません。")
+    repo.unconfirm_schedule_month(conn, year_month)
+
+
 def is_confirmed(conn: sqlite3.Connection, year_month: str) -> bool:
     return repo.is_month_confirmed(conn, year_month)
 

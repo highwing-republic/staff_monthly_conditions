@@ -133,13 +133,24 @@ def test_scheduler_result_invalid_status(status):
         SchedulerResult(status=status)
 
 
-@pytest.mark.parametrize("stage", [-1, 5])
+@pytest.mark.parametrize("stage", [-1, 6])
 def test_scheduler_result_invalid_completed_stage(stage):
     with pytest.raises(ValueError):
         SchedulerResult(status="OPTIMAL", completed_stage=stage)
 
 
-@pytest.mark.parametrize("stage", [0, 5])
+def test_scheduler_result_v14_fields_default_none():
+    r = SchedulerResult(status="OPTIMAL", completed_stage=5)
+    assert r.objective_max_deviation is None
+    assert r.objective_max_overstaff is None
+
+
+@pytest.mark.parametrize("stage", [1, 5])
+def test_stage_objective_valid_stage_range(stage):
+    assert StageObjectiveResult(stage, "OPTIMAL", 0).stage == stage
+
+
+@pytest.mark.parametrize("stage", [0, 6])
 def test_stage_objective_invalid_stage(stage):
     with pytest.raises(ValueError):
         StageObjectiveResult(stage, "OPTIMAL", 0)

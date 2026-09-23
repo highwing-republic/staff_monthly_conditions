@@ -44,7 +44,7 @@ def test_demo_data_shape(conn, demo):
 
 
 def test_normal_flow(conn, demo):
-    """T91: 条件 → 希望 → 必要人数 → generate → edit → lock → regenerate → confirm → Excel."""
+    """T91: 条件 → 希望 → 最低人数 → generate → edit → lock → regenerate → confirm → Excel."""
     started = time.monotonic()
     outcome = services.generate_and_save(conn, YM)
     assert time.monotonic() - started < 11  # §56 Solver全体10秒以内（+構築・保存）

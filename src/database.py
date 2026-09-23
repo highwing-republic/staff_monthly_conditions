@@ -145,6 +145,8 @@ def initialize_database(conn: sqlite3.Connection) -> None:
                 objective_target_deviation INTEGER NULL,
                 objective_prefer_off INTEGER NULL,
                 objective_prefer_work INTEGER NULL,
+                objective_max_deviation INTEGER NULL,
+                objective_max_overstaff INTEGER NULL,
                 generated_at TEXT NULL,
                 confirmed_at TEXT NULL
             )
@@ -175,6 +177,7 @@ def initialize_database(conn: sqlite3.Connection) -> None:
         )
 
         _migrate_staff_skill_level(conn)
+        _migrate_schedule_month_objectives(conn)
 
 
 def _migrate_staff_skill_level(conn: sqlite3.Connection) -> None:
@@ -187,3 +190,11 @@ def _migrate_staff_skill_level(conn: sqlite3.Connection) -> None:
         f"DEFAULT {SKILL_LEVEL_DEFAULT} "
         f"CHECK (skill_level BETWEEN {SKILL_LEVEL_MIN} AND {SKILL_LEVEL_MAX})"
     )
+
+
+def _migrate_schedule_month_objectives(conn: sqlite3.Connection) -> None:
+    """既存DBに v1.4 の目的値列がなければ追加する（冪等）."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(schedule_months)")}
+    for column in ("objective_max_deviation", "objective_max_overstaff"):
+        if column not in columns:
+            conn.execute(f"ALTER TABLE schedule_months ADD COLUMN {column} INTEGER NULL")

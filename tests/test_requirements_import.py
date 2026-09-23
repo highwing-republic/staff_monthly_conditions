@@ -116,7 +116,26 @@ def test_normalize_requirements_missing_required_column():
     assert daily == []
     assert role == []
     assert len(errors) == 1
-    assert "必要人数" in errors[0].message
+    assert "最低人数" in errors[0].message
+
+
+def test_normalize_requirements_accepts_minimum_staff_column_name():
+    df = pd.DataFrame(
+        [{"日付": "2026-10-01", "稼働率": 0.5, "最低人数": 3, "最大人数": 5, "備考": "テスト"}]
+    )
+    daily, role, errors = normalize_requirements(df, YM, ROLES)
+    assert errors == []
+    assert len(daily) == 1
+    assert daily[0].required_total_staff == 3
+
+
+def test_normalize_requirements_prefers_minimum_staff_when_both_columns_present():
+    df = pd.DataFrame(
+        [{"日付": "2026-10-01", "最低人数": 3, "必要人数": 9}]
+    )
+    daily, role, errors = normalize_requirements(df, YM, ROLES)
+    assert errors == []
+    assert daily[0].required_total_staff == 3
 
 
 def test_normalize_requirements_out_of_month_date():

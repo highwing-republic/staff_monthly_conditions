@@ -11,6 +11,7 @@ from src.constants import (
     SOLVER_STATUS_FEASIBLE,
     SOLVER_STATUS_OPTIMAL,
     SOLVER_STATUSES,
+    STAGES,
 )
 
 
@@ -114,12 +115,12 @@ class AssignmentResult:
 class StageObjectiveResult:
     """段階最適化の1Stage分の結果. 実行したStageのみ作る."""
 
-    stage: int  # 1..4
+    stage: int  # 1..len(STAGES)
     solver_status: str
     objective_value: int | None = None
 
     def __post_init__(self) -> None:
-        if self.stage not in (1, 2, 3, 4):
+        if self.stage not in STAGES:
             raise ValueError(f"invalid stage: {self.stage!r}")
         if self.solver_status not in SOLVER_STATUSES:
             raise ValueError(f"invalid solver_status: {self.solver_status!r}")
@@ -130,6 +131,7 @@ class SchedulerResult:
     """Solver全体の結果（§37, §38.4, §41）.
 
     INFEASIBLE / UNKNOWN 時は assignments = []。未実行Stageのobjective値は None。
+    objective_overstaff は最適化対象ではなく、解の「最低人数を超える出勤」合計（v1.4）。
     """
 
     status: str
@@ -143,10 +145,14 @@ class SchedulerResult:
 
     stage_results: list[StageObjectiveResult] = field(default_factory=list)
 
+    # v1.4 追加（Stage 2: 差の最大値 / Stage 3: 日別超過人数の最大値）
+    objective_max_deviation: int | None = None
+    objective_max_overstaff: int | None = None
+
     def __post_init__(self) -> None:
         if self.status not in SOLVER_STATUSES:
             raise ValueError(f"invalid status: {self.status!r}")
-        if not 0 <= self.completed_stage <= 4:
+        if not 0 <= self.completed_stage <= len(STAGES):
             raise ValueError(f"invalid completed_stage: {self.completed_stage!r}")
 
     @property

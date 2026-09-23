@@ -29,8 +29,8 @@ def test_basic_solve_optimal():
     inp = make_input([staff(1), staff(2), staff(3)], conditions=[cond(i, 9) for i in (1, 2, 3)])
     result = generate_schedule(inp)
     assert result.status == "OPTIMAL"
-    assert result.completed_stage == 4
-    assert [r.stage for r in result.stage_results] == [1, 2, 3, 4]
+    assert result.completed_stage == 5
+    assert [r.stage for r in result.stage_results] == [1, 2, 3, 4, 5]
     assert len(result.assignments) == 3 * len(DATES)
     assert_hard_constraints(inp, result)
 

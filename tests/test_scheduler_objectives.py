@@ -1,4 +1,8 @@
-"""T48〜T56: 段階最適化・時間配分・hint・UNKNOWNフォールバック."""
+"""T48〜T56: 段階最適化・時間配分・hint・UNKNOWNフォールバック.
+
+v1.4 の優先順位: 1 目標日数との差の合計 → 2 差の最大値 → 3 日別超過人数の最大値
+→ 4 PREFER_OFF → 5 PREFER_WORK。最低人数（required_total_staff）はHard下限。
+"""
 
 import time
 import types
@@ -30,14 +34,69 @@ from src.scheduler import build_model, generate_schedule, solve_lexicographicall
 # ---------------------------------------------------------------------------
 
 
-def test_stage1_overstaff_zero_and_takes_priority_over_stage2():
-    # 全員28日勤務したいが、必要人数1 → 過剰配置0を優先し1日1名
+def test_stage1_target_days_take_priority_over_minimum_staff():
+    # 最低人数1だが全員28日勤務が目標 → 最低人数を超えて全員出勤させる（v1.4）
     inp = make_input([staff(1), staff(2), staff(3)], conditions=[cond(i, 28) for i in (1, 2, 3)])
     result = generate_schedule(inp)
     assert_hard_constraints(inp, result)
-    assert result.objective_overstaff == 0
-    assert all(len(workers_on(result, d)) == 1 for d in DATES)
-    assert result.objective_target_deviation == 3 * 28 - 28
+    assert result.objective_target_deviation == 0
+    assert all(len(workers_on(result, d)) == 3 for d in DATES)
+    assert result.objective_overstaff == 2 * 28
+    assert result.objective_max_overstaff == 2
+
+
+def test_max_staff_still_caps_extra_staff():
+    # 最大人数2（Hard）→ 目標28日でも1日2名まで
+    inp = make_input(
+        [staff(1), staff(2), staff(3)],
+        max_total=2,
+        conditions=[cond(i, 28) for i in (1, 2, 3)],
+    )
+    result = generate_schedule(inp)
+    assert_hard_constraints(inp, result)
+    assert all(len(workers_on(result, d)) == 2 for d in DATES)
+    assert result.objective_target_deviation == 3 * 28 - 2 * 28
+
+
+def test_stage2_spreads_shortfall_evenly():
+    # 1日ちょうど1名（最低1・最大1）で延べ28日、目標は3名×20日=60日 → 不足32日を均等に
+    inp = make_input(
+        [staff(1), staff(2), staff(3)],
+        max_total=1,
+        conditions=[cond(i, 20) for i in (1, 2, 3)],
+    )
+    result = generate_schedule(inp)
+    assert_hard_constraints(inp, result)
+    shortfalls = sorted(20 - len(workdays(result, i)) for i in (1, 2, 3))
+    assert sum(shortfalls) == 32
+    assert result.objective_target_deviation == 32
+    assert result.objective_max_deviation == 11
+    assert shortfalls == [10, 11, 11]
+
+
+def test_stage2_spreads_excess_evenly_when_minimum_exceeds_targets():
+    # 最低人数2で延べ56日。staff3 は28日目標、staff1/2 は10日目標 → 残り28日を均等に14日ずつ
+    inp = make_input(
+        [staff(1), staff(2), staff(3)],
+        required=2,
+        conditions=[cond(1, 10), cond(2, 10), cond(3, 28)],
+    )
+    result = generate_schedule(inp)
+    assert_hard_constraints(inp, result)
+    assert len(workdays(result, 3)) == 28
+    assert sorted(len(workdays(result, i)) for i in (1, 2)) == [14, 14]
+    assert result.objective_max_deviation == 4
+
+
+def test_stage3_levels_extra_staff_across_days():
+    # 最低1名×28日=28、目標 4名×14日=56 → 余剰28人日を1日1名ずつに平準化
+    inp = make_input([staff(i) for i in (1, 2, 3, 4)], conditions=[cond(i, 14) for i in (1, 2, 3, 4)])
+    result = generate_schedule(inp)
+    assert_hard_constraints(inp, result)
+    assert result.objective_target_deviation == 0
+    assert result.objective_max_overstaff == 1
+    assert all(len(workers_on(result, d)) == 2 for d in DATES)
+    assert result.objective_overstaff == 28
 
 
 def test_stage1_overstaff_counts_forced_extra_staff():
@@ -172,16 +231,18 @@ def _patch_solver(monkeypatch, status_by_stage):
 def test_all_stages_optimal_records_stage_results():
     result = generate_schedule(_simple_input())
     assert result.status == "OPTIMAL"
-    assert result.completed_stage == 4
+    assert result.completed_stage == 5
     assert [(r.stage, r.solver_status) for r in result.stage_results] == [
         (1, "OPTIMAL"),
         (2, "OPTIMAL"),
         (3, "OPTIMAL"),
         (4, "OPTIMAL"),
+        (5, "OPTIMAL"),
     ]
     assert [r.objective_value for r in result.stage_results] == [
-        result.objective_overstaff,
         result.objective_target_deviation,
+        result.objective_max_deviation,
+        result.objective_max_overstaff,
         result.objective_prefer_off,
         result.objective_prefer_work,
     ]
@@ -192,7 +253,7 @@ def test_hints_passed_from_stage2(monkeypatch):
     inp = _simple_input()
     generate_schedule(inp)
     n_vars = 3 * len(DATES)
-    assert [c["hints"] for c in calls] == [0, n_vars, n_vars, n_vars]
+    assert [c["hints"] for c in calls] == [0, n_vars, n_vars, n_vars, n_vars]
 
 
 def test_remaining_time_decreases_and_starts_at_total(monkeypatch):
@@ -217,11 +278,13 @@ def test_stage3_unknown_falls_back_to_stage2_solution(monkeypatch):
     calls = _patch_solver(monkeypatch, {3: "UNKNOWN"})
     inp = _simple_input()
     result = generate_schedule(inp)
-    assert len(calls) == 3  # Stage 4 は実行しない
+    assert len(calls) == 3  # Stage 4 以降は実行しない
     assert result.status == "FEASIBLE"
     assert result.completed_stage == 2
-    assert result.objective_overstaff is not None
+    assert result.objective_overstaff is not None  # 解の実績値は常に出す
     assert result.objective_target_deviation is not None
+    assert result.objective_max_deviation is not None
+    assert result.objective_max_overstaff is None
     assert result.objective_prefer_off is None
     assert result.objective_prefer_work is None
     assert [(r.stage, r.solver_status) for r in result.stage_results] == [
@@ -238,7 +301,8 @@ def test_stage2_unknown_falls_back_to_stage1_solution(monkeypatch):
     result = generate_schedule(inp)
     assert result.status == "FEASIBLE"
     assert result.completed_stage == 1
-    assert result.objective_target_deviation is None
+    assert result.objective_target_deviation is not None
+    assert result.objective_max_deviation is None
     assert_hard_constraints(inp, result)
 
 
@@ -246,7 +310,7 @@ def test_feasible_stage_counts_as_completed_but_not_optimal(monkeypatch):
     _patch_solver(monkeypatch, {2: "FEASIBLE"})
     result = generate_schedule(_simple_input())
     assert result.status == "FEASIBLE"
-    assert result.completed_stage == 4
+    assert result.completed_stage == 5
     assert result.stage_results[1].solver_status == "FEASIBLE"
     assert result.objective_prefer_work is not None
 
@@ -261,11 +325,11 @@ def test_stage3_infeasible_falls_back_to_stage2_solution(monkeypatch):
     assert_hard_constraints(inp, result)
 
 
-def test_stage4_unknown_falls_back_to_stage3_solution(monkeypatch):
-    _patch_solver(monkeypatch, {4: "UNKNOWN"})
+def test_stage5_unknown_falls_back_to_stage4_solution(monkeypatch):
+    _patch_solver(monkeypatch, {5: "UNKNOWN"})
     result = generate_schedule(_simple_input())
     assert result.status == "FEASIBLE"
-    assert result.completed_stage == 3
+    assert result.completed_stage == 4
     assert result.objective_prefer_off is not None
     assert result.objective_prefer_work is None
 
@@ -313,22 +377,23 @@ def test_time_exhausted_after_stage1_returns_stage1_solution(monkeypatch):
     assert result.status == "FEASIBLE"
     assert result.completed_stage == 1
     assert result.objective_overstaff is not None
-    assert result.objective_target_deviation is None
+    assert result.objective_target_deviation is not None
+    assert result.objective_max_deviation is None
     assert [r.stage for r in result.stage_results] == [1]
     assert_hard_constraints(inp, result)
 
 
-def test_objective_equality_constraint_keeps_previous_stage_value(monkeypatch):
-    # Stage 2 以降で overstaff が悪化しないこと（§36）
+def test_objective_equality_constraint_keeps_previous_stage_value():
+    # 後段(PREFER_WORK)が全日出勤を望んでも Stage 1 の目標差0は維持される（§36）
     inp = make_input(
-        [staff(1), staff(2), staff(3)],
-        conditions=[cond(i, 28) for i in (1, 2, 3)],
-        prefs=[PreferenceInput(i, day(d), "PREFER_WORK") for i in (1, 2, 3) for d in range(1, 29)],
+        [staff(1), staff(2)],
+        conditions=[cond(1, 14), cond(2, 14)],
+        prefs=[PreferenceInput(i, day(d), "PREFER_WORK") for i in (1, 2) for d in range(1, 29)],
     )
     result = generate_schedule(inp)
-    assert result.objective_overstaff == 0
-    assert all(len(workers_on(result, d)) == 1 for d in DATES)
-    assert result.objective_prefer_work == 3 * 28 - 28
+    assert result.objective_target_deviation == 0
+    assert len(workdays(result, 1)) == 14 and len(workdays(result, 2)) == 14
+    assert result.objective_prefer_work == 2 * 28 - 28
 
 
 # ---------------------------------------------------------------------------
@@ -387,3 +452,17 @@ def test_realistic_month_within_time_limit():
     for p in inp.preferences:
         if p.preference_type == "UNAVAILABLE":
             assert g[p.staff_id, p.work_date] is False
+
+
+def test_target_longer_than_month_is_still_solvable():
+    # レビュー指摘: 目標日数 > 月の日数でも差の最大値の上限で不成立にしない
+    # 日曜のみ勤務可・目標40日（28日月） → 4日しか働けないが有効なシフトは作れる
+    inp = make_input(
+        [staff(1, off_weekdays=(0, 1, 2, 3, 4, 5), minutes=240), staff(2)],
+        conditions=[cond(1, 40, minutes=240), cond(2, 28)],
+    )
+    result = generate_schedule(inp)
+    assert result.status == "OPTIMAL"
+    assert_hard_constraints(inp, result)
+    assert len(workdays(result, 1)) == 4
+    assert result.objective_max_deviation == 36

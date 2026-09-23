@@ -3,7 +3,7 @@
 3シートを持つブックを作成する。
 
 - T85 月間勤務表: スタッフ x 日付のグリッド。○=出勤 / 空欄=休み。
-- T86 日別人数: 日付ごとの必要人数・出勤人数・ロール別内訳。
+- T86 日別人数: 日付ごとの最低人数・出勤人数・ロール別内訳。
 - T87 スタッフ集計: スタッフごとの勤務実績・希望反映状況。
 
 DB/Streamlitに依存しない（SchedulerInput・repositoryのレコード型のみを使う）。
@@ -215,7 +215,7 @@ def _build_daily_sheet(
     }
     role_ids = sorted(role_names.keys())
 
-    headers = ["日付", "曜日", "必要人数", "最大人数", "出勤人数", "過不足"]
+    headers = ["日付", "曜日", "最低人数", "最大人数", "出勤人数", "過不足"]
     for role_id in role_ids:
         role_name = role_names[role_id]
         headers.append(f"{role_name}（必要）")
