@@ -1,10 +1,17 @@
 # ホテル清掃スタッフ月間シフト自動作成アプリ
-## MVP 実装計画書 v1.4
+## MVP 実装計画書 v1.5
 ### Claude Code実装版
 
 ---
 
 # 変更履歴
+
+## v1.5（v1.4からの変更）
+
+- §48 変更：確定解除を追加（ユーザー要望）。CONFIRMED 月は「確定を解除」で DRAFT に戻せる。
+  勤務データ・固定セルは維持し、`confirmed_at` は NULL に戻す。
+  CONFIRMED のままの edit / generate / regenerate / lock変更 の禁止（UI・repository双方）は従来どおり
+- §49 補足：確定解除前にダウンロードしたExcelが、解除前の確定記録となる
 
 ## v1.4（v1.3からの変更）
 
@@ -1474,7 +1481,16 @@ lock変更
 
 UIだけでなくrepository/serviceロジックでも拒否。
 
-確定解除はMVP対象外。
+確定解除（v1.5）：
+
+```text
+CONFIRMED → 確定を解除 → DRAFT
+```
+
+- 勤務データ・固定セルは変更しない
+- `confirmed_at` は NULL に戻す
+- 解除後は通常どおり edit / lock / regenerate / 再確定が可能
+- UIでは確認チェック後にのみ実行できる
 
 ---
 

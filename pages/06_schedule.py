@@ -30,7 +30,7 @@ if schedule_month is None:
 
 is_confirmed = schedule_month.status == "CONFIRMED"
 if is_confirmed:
-    st.info("この月は確定済みです（編集不可）")
+    st.info("この月は確定済みです（編集不可）。再編集するにはページ下部の「確定」から確定を解除してください。")
 
 # ---------------------------------------------------------------------------
 # Solver結果
@@ -324,6 +324,21 @@ st.subheader("確定")
 
 if is_confirmed:
     st.caption(f"確定日時: {schedule_month.confirmed_at}")
+    with st.expander("確定を解除して再編集する"):
+        st.warning(
+            "確定を解除すると下書きに戻り、編集・固定・再計算ができるようになります。"
+            "勤務内容と固定はそのまま残ります。"
+            "確定時にダウンロードしたExcelは、解除前の確定記録として保管してください。"
+        )
+        agreed = st.checkbox("確定を解除することを確認しました", key="unconfirm_agree")
+        if st.button("確定を解除する", disabled=not agreed):
+            try:
+                services.unconfirm_month(conn, year_month)
+            except ValueError as exc:
+                st.error(str(exc))
+            else:
+                st.success("確定を解除しました。再編集できます。")
+                st.rerun()
 else:
     if st.button("この月のシフトを確定する", type="primary"):
         try:

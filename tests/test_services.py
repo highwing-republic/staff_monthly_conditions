@@ -247,3 +247,48 @@ def test_load_scheduler_input_includes_locks_and_inactive(conn):
     assert [s.active for s in inp.staff] == [True, True, False]
     assert [(l.staff_id, l.work_date) for l in inp.locked_assignments] == [(ids[0], DATES[0])]
     assert services.get_role_names(conn)[LEADER]
+
+
+# ---------------------------------------------------------------------------
+# v1.5 確定解除
+# ---------------------------------------------------------------------------
+
+
+def test_unconfirm_allows_re_edit_and_reconfirm(conn):
+    ids = _setup_month(conn)
+    services.generate_and_save(conn, YM)
+    services.set_lock(conn, ids[0], DATES[0], True)
+    assert services.confirm_month(conn, YM).confirmed
+    before = repo.load_assignments(conn, YM)
+
+    services.unconfirm_month(conn, YM)
+
+    month = repo.get_schedule_month(conn, YM)
+    assert month.status == "DRAFT"
+    assert month.confirmed_at is None
+    assert repo.load_assignments(conn, YM) == before  # 勤務・固定は維持
+    assert _cell(conn, ids[0], DATES[0]).is_locked
+
+    # 解除後は編集・再計算・再確定ができる
+    services.apply_manual_edit(conn, ids[1], DATES[5], True, is_locked=True)
+    assert services.generate_and_save(conn, YM).saved
+    assert _cell(conn, ids[1], DATES[5]).is_working
+    assert services.confirm_month(conn, YM).confirmed
+
+
+def test_unconfirm_requires_confirmed_month(conn):
+    _setup_month(conn)
+    with pytest.raises(ValueError):
+        services.unconfirm_month(conn, YM)  # 未生成
+    services.generate_and_save(conn, YM)
+    with pytest.raises(ValueError):
+        services.unconfirm_month(conn, YM)  # DRAFT
+
+
+def test_repository_unconfirm_errors(conn):
+    _setup_month(conn)
+    with pytest.raises(ValueError):
+        repo.unconfirm_schedule_month(conn, YM)
+    services.generate_and_save(conn, YM)
+    with pytest.raises(ValueError):
+        repo.unconfirm_schedule_month(conn, YM)

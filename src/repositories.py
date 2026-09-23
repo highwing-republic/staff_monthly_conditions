@@ -609,3 +609,19 @@ def confirm_schedule_month(conn: sqlite3.Connection, year_month: str) -> None:
             "UPDATE schedule_months SET status = ?, confirmed_at = ? WHERE year_month = ?",
             (SCHEDULE_STATUS_CONFIRMED, confirmed_at, year_month),
         )
+
+
+def unconfirm_schedule_month(conn: sqlite3.Connection, year_month: str) -> None:
+    """確定を解除して DRAFT に戻す（計画書 v1.5 §48）. 勤務データ・固定は変更しない."""
+    with conn:
+        row = conn.execute(
+            "SELECT status FROM schedule_months WHERE year_month = ?", (year_month,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"schedule month not found: {year_month!r}")
+        if row["status"] != SCHEDULE_STATUS_CONFIRMED:
+            raise ValueError(f"schedule month is not CONFIRMED: {year_month!r}")
+        conn.execute(
+            "UPDATE schedule_months SET status = ?, confirmed_at = NULL WHERE year_month = ?",
+            (SCHEDULE_STATUS_DRAFT, year_month),
+        )
