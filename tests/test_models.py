@@ -37,6 +37,12 @@ def test_staff_input_defaults_and_weekday():
     assert s.is_available_on(0) is True
     assert s.is_available_on(1) is False
     assert s.is_available_on(6) is False  # 欠落はFalse
+    assert s.skill_level == 3  # デフォルト
+
+
+def test_staff_input_skill_level_override():
+    s = _staff(skill_level=5)
+    assert s.skill_level == 5
 
 
 def test_inputs_are_frozen():

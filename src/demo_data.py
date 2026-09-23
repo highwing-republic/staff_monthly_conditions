@@ -26,23 +26,23 @@ DEMO_YEAR_MONTH = "2026-10"
 
 LEADER, CHECKER, CLEANER = 1, 2, 3
 
-# (名前, role_id, 1日勤務分, 最大連勤, 勤務不可曜日, 所定日数, 最低日数, 最大日数)
+# (名前, role_id, 1日勤務分, 最大連勤, 勤務不可曜日, 所定日数, 最低日数, 最大日数, スキル)
 DEMO_STAFF = [
-    ("佐藤", LEADER, 480, 5, (), 20, 16, 22),
-    ("鈴木", LEADER, 480, 5, (6,), 20, None, 22),
-    ("高橋", LEADER, 480, 5, (), 18, None, 21),
-    ("田中", CHECKER, 480, 5, (), 20, 16, 22),
-    ("伊藤", CHECKER, 360, 5, (5,), 18, None, 21),
-    ("渡辺", CHECKER, 480, 5, (), 19, None, 22),
-    ("山本", CLEANER, 480, 5, (), 20, None, 22),
-    ("中村", CLEANER, 360, 5, (), 18, None, 21),
-    ("小林", CLEANER, 300, 4, (2,), 14, None, 17),
-    ("加藤", CLEANER, 480, 5, (), 20, None, 22),
-    ("吉田", CLEANER, 360, 5, (6,), 16, None, 19),
-    ("山田", CLEANER, 300, 4, (), 14, None, 17),
-    ("佐々木", CLEANER, 480, 5, (), 20, None, 22),
-    ("山口", CLEANER, 360, 5, (0,), 16, None, 19),
-    ("松本", CLEANER, 300, 4, (), 12, None, 15),
+    ("佐藤", LEADER, 480, 5, (), 20, 16, 22, 5),
+    ("鈴木", LEADER, 480, 5, (6,), 20, None, 22, 5),
+    ("高橋", LEADER, 480, 5, (), 18, None, 21, 4),
+    ("田中", CHECKER, 480, 5, (), 20, 16, 22, 4),
+    ("伊藤", CHECKER, 360, 5, (5,), 18, None, 21, 4),
+    ("渡辺", CHECKER, 480, 5, (), 19, None, 22, 3),
+    ("山本", CLEANER, 480, 5, (), 20, None, 22, 4),
+    ("中村", CLEANER, 360, 5, (), 18, None, 21, 3),
+    ("小林", CLEANER, 300, 4, (2,), 14, None, 17, 2),
+    ("加藤", CLEANER, 480, 5, (), 20, None, 22, 3),
+    ("吉田", CLEANER, 360, 5, (6,), 16, None, 19, 3),
+    ("山田", CLEANER, 300, 4, (), 14, None, 17, 2),
+    ("佐々木", CLEANER, 480, 5, (), 20, None, 22, 4),
+    ("山口", CLEANER, 360, 5, (0,), 16, None, 19, 2),
+    ("松本", CLEANER, 300, 4, (), 12, None, 15, 1),
 ]
 
 
@@ -52,10 +52,10 @@ def seed_demo(conn, year_month: str = DEMO_YEAR_MONTH) -> list[int]:
     staff_ids: list[int] = []
 
     # T88 スタッフ
-    for index, (name, role_id, minutes, max_consec, off_weekdays, target, min_d, max_d) in enumerate(
-        DEMO_STAFF
-    ):
-        staff_id = repo.create_staff(conn, name, role_id, minutes, max_consec)
+    for index, (
+        name, role_id, minutes, max_consec, off_weekdays, target, min_d, max_d, skill,
+    ) in enumerate(DEMO_STAFF):
+        staff_id = repo.create_staff(conn, name, role_id, minutes, max_consec, skill)
         repo.save_weekday_availability(
             conn, staff_id, {w: w not in off_weekdays for w in range(7)}
         )

@@ -82,6 +82,20 @@ def test_app_main_runs(db_path):
     assert not at.exception
 
 
+def test_menu_lists_every_page_with_japanese_title(db_path):
+    import app
+
+    menu_paths = [path for path, _ in app.MENU_PAGES]
+    assert menu_paths == sorted(p.relative_to(REPO_ROOT).as_posix() for p in (REPO_ROOT / "pages").glob("*.py"))
+    assert all(not title.isascii() for _, title in app.MENU_PAGES)
+
+    at = AppTest.from_file(_page("app.py"), default_timeout=30)
+    at.run()
+    for path in menu_paths:
+        at.switch_page(path).run()
+        assert not at.exception, path
+
+
 # ---------------------------------------------------------------------------
 # 01 スタッフ
 # ---------------------------------------------------------------------------
@@ -92,6 +106,51 @@ def test_staff_page_renders_with_seeded_data(db_path):
     at = AppTest.from_file(_page("pages/01_staff.py"), default_timeout=30)
     at.run()
     assert not at.exception
+
+
+def test_staff_page_create_form_saves_skill_level(db_path):
+    """SK06-SK07: 新規登録フォームでスキル5を選び、DBへ保存されること."""
+    at = AppTest.from_file(_page("pages/01_staff.py"), default_timeout=30)
+    at.run()
+    assert not at.exception
+
+    # 新規登録フォーム(一覧が空の状態): text_input[0]=スタッフ名, selectbox[1]=スキル
+    at.text_input[0].input("新人太郎")
+    at.selectbox[1].select(5)
+    submit = [b for b in at.button if b.label == "登録"]
+    assert submit, "create submit button not found"
+    submit[0].click()
+    at.run()
+    assert not at.exception
+
+    conn = get_connection(str(db_path))
+    created = next(s for s in repo.list_staff(conn) if s.staff_name == "新人太郎")
+    conn.close()
+    assert created.skill_level == 5
+
+
+def test_staff_page_edit_form_updates_skill_level(db_path):
+    """SK08: 編集フォームでスキルを変更し、即座にDBへ保存されること."""
+    conn = get_connection(str(db_path))
+    staff_id = repo.create_staff(conn, "山田", CLEANER, 480, 5, 2)
+    conn.close()
+
+    at = AppTest.from_file(_page("pages/01_staff.py"), default_timeout=30)
+    at.run()
+    assert not at.exception
+
+    # 編集フォーム: selectbox[4]=edit_skill_level（唯一の登録済みスタッフが選択済み）
+    at.selectbox[4].select(5)
+    submit = [b for b in at.button if b.label == "更新"]
+    assert submit, "edit submit button not found"
+    submit[0].click()
+    at.run()
+    assert not at.exception
+
+    conn = get_connection(str(db_path))
+    updated = repo.get_staff(conn, staff_id)
+    conn.close()
+    assert updated.skill_level == 5
 
 
 # ---------------------------------------------------------------------------

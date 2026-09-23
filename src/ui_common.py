@@ -9,12 +9,18 @@ from datetime import date
 
 import streamlit as st
 
+from src.constants import SKILL_LEVELS
 from src.database import get_connection, initialize_database
 from src.models import ValidationError
 
 DB_PATH_ENV = "STAFF_SHIFT_DB_PATH"
 
 WEEKDAY_LABELS_JA = ("月", "火", "水", "木", "金", "土", "日")
+
+
+def format_skill_level(level: int) -> str:
+    """スキルレベルの表示ラベルを作る（例: "3 - 標準"）."""
+    return f"{level} - {SKILL_LEVELS.get(level, '?')}"
 
 
 def open_connection() -> sqlite3.Connection:

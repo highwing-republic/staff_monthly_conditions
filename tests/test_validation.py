@@ -21,6 +21,7 @@ from src.validation import (
     STAFF_DAILY_WORK_MINUTES_INVALID,
     STAFF_MAX_CONSECUTIVE_DAYS_INVALID,
     STAFF_NAME_REQUIRED,
+    STAFF_SKILL_LEVEL_INVALID,
     validate_daily_requirement,
     validate_monthly_condition,
     validate_preference,
@@ -48,55 +49,71 @@ def _staff(**kw):
 
 class TestValidateStaff:
     def test_valid(self):
-        assert validate_staff("山田", 480, 5) == []
+        assert validate_staff("山田", 480, 5, 3) == []
 
     @pytest.mark.parametrize("name", ["", "   ", None])
     def test_name_invalid(self, name):
-        errors = validate_staff(name, 480, 5)
+        errors = validate_staff(name, 480, 5, 3)
         codes = [e.code for e in errors]
         assert STAFF_NAME_REQUIRED in codes
 
     def test_name_stripped_still_valid(self):
-        assert validate_staff("  山田  ", 480, 5) == []
+        assert validate_staff("  山田  ", 480, 5, 3) == []
 
     @pytest.mark.parametrize("minutes", [1, 1440])
     def test_daily_work_minutes_boundary_valid(self, minutes):
-        errors = validate_staff("山田", minutes, 5)
+        errors = validate_staff("山田", minutes, 5, 3)
         assert errors == []
 
     @pytest.mark.parametrize("minutes", [0, 1441, -1])
     def test_daily_work_minutes_boundary_invalid(self, minutes):
-        errors = validate_staff("山田", minutes, 5)
+        errors = validate_staff("山田", minutes, 5, 3)
         assert STAFF_DAILY_WORK_MINUTES_INVALID in [e.code for e in errors]
 
     def test_daily_work_minutes_bool_rejected(self):
-        errors = validate_staff("山田", True, 5)
+        errors = validate_staff("山田", True, 5, 3)
         assert STAFF_DAILY_WORK_MINUTES_INVALID in [e.code for e in errors]
 
     def test_daily_work_minutes_non_int_rejected(self):
-        errors = validate_staff("山田", 480.5, 5)
+        errors = validate_staff("山田", 480.5, 5, 3)
         assert STAFF_DAILY_WORK_MINUTES_INVALID in [e.code for e in errors]
 
     @pytest.mark.parametrize("days", [1, 100])
     def test_max_consecutive_days_valid(self, days):
-        assert validate_staff("山田", 480, days) == []
+        assert validate_staff("山田", 480, days, 3) == []
 
     @pytest.mark.parametrize("days", [0, -1])
     def test_max_consecutive_days_invalid(self, days):
-        errors = validate_staff("山田", 480, days)
+        errors = validate_staff("山田", 480, days, 3)
         assert STAFF_MAX_CONSECUTIVE_DAYS_INVALID in [e.code for e in errors]
 
     def test_max_consecutive_days_bool_rejected(self):
-        errors = validate_staff("山田", 480, False)
+        errors = validate_staff("山田", 480, False, 3)
         assert STAFF_MAX_CONSECUTIVE_DAYS_INVALID in [e.code for e in errors]
 
+    @pytest.mark.parametrize("skill_level", [1, 2, 3, 4, 5])
+    def test_skill_level_boundary_valid(self, skill_level):
+        assert validate_staff("山田", 480, 5, skill_level) == []
+
+    @pytest.mark.parametrize("skill_level", [0, 6])
+    def test_skill_level_out_of_range_invalid(self, skill_level):
+        errors = validate_staff("山田", 480, 5, skill_level)
+        assert STAFF_SKILL_LEVEL_INVALID in [e.code for e in errors]
+        assert any(e.message == "スキルは1〜5で入力してください。" for e in errors)
+
+    @pytest.mark.parametrize("skill_level", [True, False, None, 3.5, "3"])
+    def test_skill_level_invalid_type_rejected(self, skill_level):
+        errors = validate_staff("山田", 480, 5, skill_level)
+        assert STAFF_SKILL_LEVEL_INVALID in [e.code for e in errors]
+
     def test_multiple_errors_collected(self):
-        errors = validate_staff("", 0, 0)
+        errors = validate_staff("", 0, 0, 0)
         codes = {e.code for e in errors}
         assert codes == {
             STAFF_NAME_REQUIRED,
             STAFF_DAILY_WORK_MINUTES_INVALID,
             STAFF_MAX_CONSECUTIVE_DAYS_INVALID,
+            STAFF_SKILL_LEVEL_INVALID,
         }
 
 

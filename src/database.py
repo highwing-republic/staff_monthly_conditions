@@ -6,6 +6,9 @@ from pathlib import Path
 from src.constants import (
     PREFERENCE_TYPES,
     SCHEDULE_STATUS,
+    SKILL_LEVEL_DEFAULT,
+    SKILL_LEVEL_MAX,
+    SKILL_LEVEL_MIN,
     SOURCE_TYPES,
 )
 
@@ -54,7 +57,7 @@ def initialize_database(conn: sqlite3.Connection) -> None:
         )
 
         conn.execute(
-            """
+            f"""
             CREATE TABLE IF NOT EXISTS staff (
                 staff_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 staff_name TEXT NOT NULL,
@@ -62,6 +65,8 @@ def initialize_database(conn: sqlite3.Connection) -> None:
                 daily_work_minutes INTEGER NOT NULL,
                 max_consecutive_days INTEGER NOT NULL,
                 active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                skill_level INTEGER NOT NULL DEFAULT {SKILL_LEVEL_DEFAULT}
+                    CHECK (skill_level BETWEEN {SKILL_LEVEL_MIN} AND {SKILL_LEVEL_MAX}),
                 FOREIGN KEY (role_id) REFERENCES roles (role_id)
             )
             """
@@ -168,3 +173,17 @@ def initialize_database(conn: sqlite3.Connection) -> None:
                 (3, "CLEANER", "クリーナー"),
             ],
         )
+
+        _migrate_staff_skill_level(conn)
+
+
+def _migrate_staff_skill_level(conn: sqlite3.Connection) -> None:
+    """既存DBにskill_level列がなければ追加する（冪等, §7-§11）."""
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(staff)")}
+    if "skill_level" in columns:
+        return
+    conn.execute(
+        f"ALTER TABLE staff ADD COLUMN skill_level INTEGER NOT NULL "
+        f"DEFAULT {SKILL_LEVEL_DEFAULT} "
+        f"CHECK (skill_level BETWEEN {SKILL_LEVEL_MIN} AND {SKILL_LEVEL_MAX})"
+    )

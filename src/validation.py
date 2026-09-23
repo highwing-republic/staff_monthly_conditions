@@ -5,7 +5,7 @@
 
 from datetime import date
 
-from src.constants import PREFERENCE_PREFER_WORK
+from src.constants import PREFERENCE_PREFER_WORK, SKILL_LEVEL_MAX, SKILL_LEVEL_MIN
 from src.models import (
     DailyRequirementInput,
     MonthlyConditionInput,
@@ -23,6 +23,7 @@ from src.month_utils import parse_year_month, weekday_index
 STAFF_NAME_REQUIRED = "STAFF_NAME_REQUIRED"
 STAFF_DAILY_WORK_MINUTES_INVALID = "STAFF_DAILY_WORK_MINUTES_INVALID"
 STAFF_MAX_CONSECUTIVE_DAYS_INVALID = "STAFF_MAX_CONSECUTIVE_DAYS_INVALID"
+STAFF_SKILL_LEVEL_INVALID = "STAFF_SKILL_LEVEL_INVALID"
 
 # エラーコード（T20 Monthly Condition）
 MONTHLY_CONDITION_YEAR_MONTH_INVALID = "MONTHLY_CONDITION_YEAR_MONTH_INVALID"
@@ -81,8 +82,9 @@ def validate_staff(
     staff_name: str,
     daily_work_minutes: int,
     max_consecutive_days: int,
+    skill_level: int,
 ) -> list[ValidationError]:
-    """スタッフ入力の検証（§19）."""
+    """スタッフ入力の検証（§19, §13-§14）."""
     errors: list[ValidationError] = []
 
     if not isinstance(staff_name, str) or not staff_name.strip():
@@ -109,6 +111,18 @@ def validate_staff(
                 code=STAFF_MAX_CONSECUTIVE_DAYS_INVALID,
                 message="最大連続勤務日数は1以上の整数で入力してください。",
                 field_name="max_consecutive_days",
+            )
+        )
+
+    if (
+        not _is_valid_int(skill_level)
+        or not SKILL_LEVEL_MIN <= skill_level <= SKILL_LEVEL_MAX
+    ):
+        errors.append(
+            ValidationError(
+                code=STAFF_SKILL_LEVEL_INVALID,
+                message="スキルは1〜5で入力してください。",
+                field_name="skill_level",
             )
         )
 
