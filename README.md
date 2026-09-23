@@ -19,6 +19,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+## デモデータ
+
+15名・2026年10月分の条件・必要人数・希望を `data/app.db` に投入します。
+
+```bash
+python -m src.demo_data 2026-10
+```
+
 ## 起動
 
 ```bash
