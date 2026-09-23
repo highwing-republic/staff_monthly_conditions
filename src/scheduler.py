@@ -321,16 +321,21 @@ def _create_prefer_work_terms(sm: ScheduleModel) -> None:
 
 
 def generate_schedule(scheduler_input: SchedulerInput) -> SchedulerResult:
-    """build_model → solve_lexicographically."""
-    return solve_lexicographically(build_model(scheduler_input))
+    """build_model → solve_lexicographically. 時間制限はモデル構築を含めて計測する."""
+    started_at = time.monotonic()
+    return solve_lexicographically(build_model(scheduler_input), started_at=started_at)
 
 
 def solve_lexicographically(
     sm: ScheduleModel,
     time_limit_seconds: float = TOTAL_SOLVE_TIME_LIMIT_SECONDS,
+    started_at: float | None = None,
 ) -> SchedulerResult:
-    """Stage 1→4 の段階最適化. 時間制限は4 Stage合計（§38.1）."""
-    started = time.monotonic()
+    """Stage 1→4 の段階最適化. 時間制限は4 Stage合計（§38.1）.
+
+    sm.model に目的値の等式制約・hintを追加していくため、ScheduleModel は1回限り使用する。
+    """
+    started = time.monotonic() if started_at is None else started_at
     objectives: dict[int, int] = {}
     stage_results: list[StageObjectiveResult] = []
     solution: dict[Key, bool] | None = None

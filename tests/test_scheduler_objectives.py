@@ -247,7 +247,45 @@ def test_feasible_stage_counts_as_completed_but_not_optimal(monkeypatch):
     result = generate_schedule(_simple_input())
     assert result.status == "FEASIBLE"
     assert result.completed_stage == 4
+    assert result.stage_results[1].solver_status == "FEASIBLE"
     assert result.objective_prefer_work is not None
+
+
+def test_stage3_infeasible_falls_back_to_stage2_solution(monkeypatch):
+    _patch_solver(monkeypatch, {3: "INFEASIBLE"})
+    inp = _simple_input()
+    result = generate_schedule(inp)
+    assert result.status == "FEASIBLE"
+    assert result.completed_stage == 2
+    assert (result.stage_results[-1].stage, result.stage_results[-1].solver_status) == (3, "INFEASIBLE")
+    assert_hard_constraints(inp, result)
+
+
+def test_stage4_unknown_falls_back_to_stage3_solution(monkeypatch):
+    _patch_solver(monkeypatch, {4: "UNKNOWN"})
+    result = generate_schedule(_simple_input())
+    assert result.status == "FEASIBLE"
+    assert result.completed_stage == 3
+    assert result.objective_prefer_off is not None
+    assert result.objective_prefer_work is None
+
+
+def test_hint_values_equal_previous_stage_solution(monkeypatch):
+    real = scheduler._run_solver
+    captured = []
+
+    def spy(model, remaining):
+        hint = dict(zip(model.proto.solution_hint.vars, model.proto.solution_hint.values))
+        status, solver = real(model, remaining)
+        captured.append((hint, solver))
+        return status, solver
+
+    monkeypatch.setattr(scheduler, "_run_solver", spy)
+    sm = build_model(_simple_input())
+    solve_lexicographically(sm)
+    for (_, prev_solver), (hint, _) in zip(captured, captured[1:]):
+        expected = {v.index: int(prev_solver.boolean_value(v)) for v in sm.x.values()}
+        assert hint == expected
 
 
 def test_time_exhausted_before_stage1_is_unknown():

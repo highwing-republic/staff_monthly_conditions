@@ -69,6 +69,8 @@ def _carryover_case(max_consec, carryover, lock_days):
         (5, 0, [1, 2, 3, 4, 5], True),
         (3, 1, [1, 2], True),
         (3, 1, [1, 2, 3], False),
+        (40, 10, range(1, 29), True),  # M-C+1 が月より長い: 10 + 28 = 38 <= 40
+        (40, 13, range(1, 29), False),  # 13 + 28 = 41 > 40
     ],
 )
 def test_hc10_carryover(max_consec, carryover, lock_days, feasible):
