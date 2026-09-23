@@ -11,6 +11,7 @@ from datetime import datetime
 from src.constants import (
     SCHEDULE_STATUS_CONFIRMED,
     SCHEDULE_STATUS_DRAFT,
+    SKILL_LEVEL_DEFAULT,
     SOURCE_MANUAL,
     SOURCE_OPTIMIZED,
 )
@@ -87,6 +88,7 @@ def _row_to_staff_input(conn: sqlite3.Connection, row: sqlite3.Row) -> StaffInpu
         max_consecutive_days=row["max_consecutive_days"],
         active=bool(row["active"]),
         weekday_availability=_load_weekday_availability(conn, row["staff_id"]),
+        skill_level=row["skill_level"],
     )
 
 
@@ -115,13 +117,14 @@ def create_staff(
     role_id: int,
     daily_work_minutes: int,
     max_consecutive_days: int,
+    skill_level: int = SKILL_LEVEL_DEFAULT,
 ) -> int:
     """スタッフを作成し、7曜日すべてavailableの行も同時に作る（§20, T08）."""
     with conn:
         cur = conn.execute(
             "INSERT INTO staff (staff_name, role_id, daily_work_minutes, "
-            "max_consecutive_days) VALUES (?, ?, ?, ?)",
-            (staff_name, role_id, daily_work_minutes, max_consecutive_days),
+            "max_consecutive_days, skill_level) VALUES (?, ?, ?, ?, ?)",
+            (staff_name, role_id, daily_work_minutes, max_consecutive_days, skill_level),
         )
         staff_id = cur.lastrowid
         conn.executemany(
@@ -140,12 +143,13 @@ def update_staff(
     role_id: int,
     daily_work_minutes: int,
     max_consecutive_days: int,
+    skill_level: int,
 ) -> None:
     with conn:
         cur = conn.execute(
             "UPDATE staff SET staff_name = ?, role_id = ?, daily_work_minutes = ?, "
-            "max_consecutive_days = ? WHERE staff_id = ?",
-            (staff_name, role_id, daily_work_minutes, max_consecutive_days, staff_id),
+            "max_consecutive_days = ?, skill_level = ? WHERE staff_id = ?",
+            (staff_name, role_id, daily_work_minutes, max_consecutive_days, skill_level, staff_id),
         )
         if cur.rowcount == 0:
             raise ValueError(f"staff not found: {staff_id!r}")

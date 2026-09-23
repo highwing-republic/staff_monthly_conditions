@@ -35,7 +35,7 @@ LEADER, CHECKER, CLEANER = 1, 2, 3
 ROLE_NAMES = {LEADER: "リーダー", CHECKER: "チェッカー", CLEANER: "クリーナー"}
 
 
-def make_staff(staff_id, role_id=CLEANER, *, active=True, minutes=480, max_consec=5):
+def make_staff(staff_id, role_id=CLEANER, *, active=True, minutes=480, max_consec=5, skill_level=3):
     return StaffInput(
         staff_id=staff_id,
         staff_name=f"スタッフ{staff_id}",
@@ -44,6 +44,7 @@ def make_staff(staff_id, role_id=CLEANER, *, active=True, minutes=480, max_conse
         max_consecutive_days=max_consec,
         active=active,
         weekday_availability={w: True for w in range(7)},
+        skill_level=skill_level,
     )
 
 
@@ -365,6 +366,7 @@ def test_staff_summary_headers():
     assert headers == [
         "スタッフ",
         "ロール",
+        "スキル",
         "1日勤務(分)",
         "出勤日数",
         "勤務時間(分)",
@@ -384,7 +386,7 @@ def test_staff_summary_headers():
 
 
 def test_staff_summary_values_with_condition_and_preferences():
-    staff_list = [make_staff(1, minutes=480)]
+    staff_list = [make_staff(1, minutes=480, skill_level=5)]
     day1, day2, day3, day4 = DATES[0], DATES[1], DATES[2], DATES[3]
     conditions = [
         MonthlyConditionInput(
@@ -414,21 +416,22 @@ def test_staff_summary_values_with_condition_and_preferences():
     row = 2
     assert ws.cell(row=row, column=1).value == "スタッフ1"
     assert ws.cell(row=row, column=2).value == "クリーナー"
-    assert ws.cell(row=row, column=3).value == 480
-    assert ws.cell(row=row, column=4).value == 3  # 出勤日数 (day1, day3, day4)
-    assert ws.cell(row=row, column=5).value == 1440  # 3 * 480
-    assert ws.cell(row=row, column=6).value == 4800
-    assert ws.cell(row=row, column=7).value == 3000
-    assert ws.cell(row=row, column=8).value == 6000
-    assert ws.cell(row=row, column=9).value == 10  # 目標日数
-    assert ws.cell(row=row, column=10).value == -7  # 目標差 = 3 - 10
-    assert ws.cell(row=row, column=11).value == 2  # 前月連勤
-    assert ws.cell(row=row, column=12).value == 1  # 希望休件数
-    assert ws.cell(row=row, column=13).value == 1  # うち出勤
-    assert ws.cell(row=row, column=14).value == 1  # できれば勤務件数
-    assert ws.cell(row=row, column=15).value == 1  # うち休み
-    assert ws.cell(row=row, column=16).value == 1  # 絶対休み件数
-    assert ws.cell(row=row, column=17).value == 1  # うち出勤 (違反)
+    assert ws.cell(row=row, column=3).value == 5  # スキル
+    assert ws.cell(row=row, column=4).value == 480
+    assert ws.cell(row=row, column=5).value == 3  # 出勤日数 (day1, day3, day4)
+    assert ws.cell(row=row, column=6).value == 1440  # 3 * 480
+    assert ws.cell(row=row, column=7).value == 4800
+    assert ws.cell(row=row, column=8).value == 3000
+    assert ws.cell(row=row, column=9).value == 6000
+    assert ws.cell(row=row, column=10).value == 10  # 目標日数
+    assert ws.cell(row=row, column=11).value == -7  # 目標差 = 3 - 10
+    assert ws.cell(row=row, column=12).value == 2  # 前月連勤
+    assert ws.cell(row=row, column=13).value == 1  # 希望休件数
+    assert ws.cell(row=row, column=14).value == 1  # うち出勤
+    assert ws.cell(row=row, column=15).value == 1  # できれば勤務件数
+    assert ws.cell(row=row, column=16).value == 1  # うち休み
+    assert ws.cell(row=row, column=17).value == 1  # 絶対休み件数
+    assert ws.cell(row=row, column=18).value == 1  # うち出勤 (違反)
 
 
 def test_staff_summary_no_condition_is_blank():
@@ -437,11 +440,11 @@ def test_staff_summary_no_condition_is_blank():
     wb = build_schedule_workbook(scheduler_input, [], ROLE_NAMES)
     ws = wb[_SHEET_STAFF_SUMMARY]
     row = 2
-    for col in (6, 7, 8, 9, 10, 11):
+    for col in (7, 8, 9, 10, 11, 12):
         assert ws.cell(row=row, column=col).value is None
-    assert ws.cell(row=row, column=12).value == 0
-    assert ws.cell(row=row, column=16).value == 0
+    assert ws.cell(row=row, column=13).value == 0
     assert ws.cell(row=row, column=17).value == 0
+    assert ws.cell(row=row, column=18).value == 0
 
 
 def test_staff_summary_inactive_excluded_and_ordered_by_staff_id():

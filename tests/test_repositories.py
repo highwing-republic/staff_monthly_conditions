@@ -71,7 +71,13 @@ def test_list_staff_include_inactive(conn):
 def test_update_staff(conn):
     staff_id = repo.create_staff(conn, "山田", 1, 480, 5)
     repo.update_staff(
-        conn, staff_id, staff_name="鈴木", role_id=2, daily_work_minutes=360, max_consecutive_days=4
+        conn,
+        staff_id,
+        staff_name="鈴木",
+        role_id=2,
+        daily_work_minutes=360,
+        max_consecutive_days=4,
+        skill_level=3,
     )
     s = repo.get_staff(conn, staff_id)
     assert s.staff_name == "鈴木"
@@ -83,8 +89,55 @@ def test_update_staff(conn):
 def test_update_staff_not_found(conn):
     with pytest.raises(ValueError):
         repo.update_staff(
-            conn, 999, staff_name="x", role_id=1, daily_work_minutes=480, max_consecutive_days=5
+            conn,
+            999,
+            staff_name="x",
+            role_id=1,
+            daily_work_minutes=480,
+            max_consecutive_days=5,
+            skill_level=3,
         )
+
+
+# ---------------------------------------------------------------------------
+# SK05 skill_level (TEST01, TEST02, TEST05, TEST06)
+# ---------------------------------------------------------------------------
+
+
+def test_create_staff_default_skill_level_is_3(conn):
+    staff_id = repo.create_staff(conn, "山田", 1, 480, 5)
+    s = repo.get_staff(conn, staff_id)
+    assert s.skill_level == 3
+
+
+@pytest.mark.parametrize("skill_level", [1, 5])
+def test_create_staff_with_skill_level_boundaries(conn, skill_level):
+    staff_id = repo.create_staff(conn, "山田", 1, 480, 5, skill_level)
+    s = repo.get_staff(conn, staff_id)
+    assert s.skill_level == skill_level
+
+
+def test_update_staff_changes_skill_level(conn):
+    staff_id = repo.create_staff(conn, "山田", 1, 480, 5, 2)
+    repo.update_staff(
+        conn,
+        staff_id,
+        staff_name="山田",
+        role_id=1,
+        daily_work_minutes=480,
+        max_consecutive_days=5,
+        skill_level=5,
+    )
+    s = repo.get_staff(conn, staff_id)
+    assert s.skill_level == 5
+
+
+def test_list_staff_returns_skill_level(conn):
+    id1 = repo.create_staff(conn, "A", 1, 480, 5, 1)
+    id2 = repo.create_staff(conn, "B", 1, 480, 5, 4)
+    skill_by_id = {s.staff_id: s.skill_level for s in repo.list_staff(conn)}
+    assert skill_by_id[id1] == 1
+    assert skill_by_id[id2] == 4
 
 
 def test_deactivate_staff(conn):

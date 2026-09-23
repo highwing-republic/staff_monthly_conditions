@@ -308,6 +308,7 @@ def _build_staff_summary_sheet(
     headers = [
         "スタッフ",
         "ロール",
+        "スキル",
         "1日勤務(分)",
         "出勤日数",
         "勤務時間(分)",
@@ -357,6 +358,7 @@ def _build_staff_summary_sheet(
         values = [
             staff.staff_name,
             role_names.get(staff.role_id, str(staff.role_id)),
+            staff.skill_level,
             staff.daily_work_minutes,
             workday_count,
             minutes_worked,

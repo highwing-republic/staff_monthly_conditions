@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from src.constants import (
     PREFERENCE_TYPES,
+    SKILL_LEVEL_DEFAULT,
     SOLVER_STATUS_FEASIBLE,
     SOLVER_STATUS_OPTIMAL,
     SOLVER_STATUSES,
@@ -30,6 +31,8 @@ class StaffInput:
     active: bool = True
     # weekday(0=Monday..6=Sunday) -> is_available。7曜日揃っていない場合はPC04で検出する
     weekday_availability: dict[int, bool] = field(default_factory=dict)
+    # 清掃業務の総合スキル(1〜5)。表示・保存のみに使用し、シフト最適化には使用しない（§25-§28）
+    skill_level: int = SKILL_LEVEL_DEFAULT
 
     def is_available_on(self, weekday: int) -> bool:
         """通常勤務可能曜日か. データ欠落時はFalse."""
