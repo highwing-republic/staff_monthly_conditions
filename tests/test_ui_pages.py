@@ -82,6 +82,20 @@ def test_app_main_runs(db_path):
     assert not at.exception
 
 
+def test_menu_lists_every_page_with_japanese_title(db_path):
+    import app
+
+    menu_paths = [path for path, _ in app.MENU_PAGES]
+    assert menu_paths == sorted(p.relative_to(REPO_ROOT).as_posix() for p in (REPO_ROOT / "pages").glob("*.py"))
+    assert all(not title.isascii() for _, title in app.MENU_PAGES)
+
+    at = AppTest.from_file(_page("app.py"), default_timeout=30)
+    at.run()
+    for path in menu_paths:
+        at.switch_page(path).run()
+        assert not at.exception, path
+
+
 # ---------------------------------------------------------------------------
 # 01 スタッフ
 # ---------------------------------------------------------------------------

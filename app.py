@@ -21,8 +21,27 @@ USAGE_STEPS = [
 ]
 
 
+# 左メニュー（ファイル名ではなく日本語の表示名で並べる）
+MENU_PAGES = [
+    ("pages/01_staff.py", "① スタッフ管理"),
+    ("pages/02_monthly_conditions.py", "② 月間勤務条件"),
+    ("pages/03_preferences.py", "③ 希望休入力"),
+    ("pages/04_requirements.py", "④ 日別必要人数"),
+    ("pages/05_generate.py", "⑤ シフト生成"),
+    ("pages/06_schedule.py", "⑥ シフト確認・確定"),
+]
+
+
 def main() -> None:
     st.set_page_config(page_title=APP_TITLE, layout="wide")
+    navigation = st.navigation(
+        [st.Page(home, title="ホーム", default=True)]
+        + [st.Page(path, title=title) for path, title in MENU_PAGES]
+    )
+    navigation.run()
+
+
+def home() -> None:
     st.title(APP_TITLE)
     st.write("ホテル客室清掃スタッフの月間勤務シフトを自動作成します。")
     st.caption("左のメニューから各画面へ移動してください。")
