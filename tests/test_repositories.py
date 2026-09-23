@@ -356,12 +356,33 @@ def _feasible_result(assignments):
     return SchedulerResult(
         status="OPTIMAL",
         assignments=assignments,
-        completed_stage=4,
+        completed_stage=5,
         objective_overstaff=0,
         objective_target_deviation=0,
         objective_prefer_off=0,
         objective_prefer_work=0,
+        objective_max_deviation=0,
+        objective_max_overstaff=0,
     )
+
+
+def test_save_generated_schedule_stores_v14_objectives(conn):
+    staff_id = repo.create_staff(conn, "山田", 1, 480, 5)
+    result = SchedulerResult(
+        status="OPTIMAL",
+        assignments=[AssignmentResult(staff_id, "2026-10-01", True)],
+        completed_stage=5,
+        objective_overstaff=7,
+        objective_target_deviation=3,
+        objective_prefer_off=1,
+        objective_prefer_work=2,
+        objective_max_deviation=2,
+        objective_max_overstaff=1,
+    )
+    repo.save_generated_schedule(conn, "2026-10", result)
+    month = repo.get_schedule_month(conn, "2026-10")
+    assert (month.objective_overstaff, month.objective_target_deviation) == (7, 3)
+    assert (month.objective_max_deviation, month.objective_max_overstaff) == (2, 1)
 
 
 def test_get_schedule_month_none(conn):

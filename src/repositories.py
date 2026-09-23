@@ -56,6 +56,8 @@ class ScheduleMonthRecord:
     objective_prefer_work: int | None
     generated_at: str | None
     confirmed_at: str | None
+    objective_max_deviation: int | None = None
+    objective_max_overstaff: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +424,8 @@ def get_schedule_month(conn: sqlite3.Connection, year_month: str) -> ScheduleMon
         objective_prefer_work=row["objective_prefer_work"],
         generated_at=row["generated_at"],
         confirmed_at=row["confirmed_at"],
+        objective_max_deviation=row["objective_max_deviation"],
+        objective_max_overstaff=row["objective_max_overstaff"],
     )
 
 
@@ -524,8 +528,9 @@ def save_generated_schedule(
                 year_month, status, solver_status,
                 objective_overstaff, objective_target_deviation,
                 objective_prefer_off, objective_prefer_work,
+                objective_max_deviation, objective_max_overstaff,
                 generated_at, confirmed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
             ON CONFLICT (year_month) DO UPDATE SET
                 status = excluded.status,
                 solver_status = excluded.solver_status,
@@ -533,6 +538,8 @@ def save_generated_schedule(
                 objective_target_deviation = excluded.objective_target_deviation,
                 objective_prefer_off = excluded.objective_prefer_off,
                 objective_prefer_work = excluded.objective_prefer_work,
+                objective_max_deviation = excluded.objective_max_deviation,
+                objective_max_overstaff = excluded.objective_max_overstaff,
                 generated_at = excluded.generated_at,
                 confirmed_at = NULL
             """,
@@ -544,6 +551,8 @@ def save_generated_schedule(
                 result.objective_target_deviation,
                 result.objective_prefer_off,
                 result.objective_prefer_work,
+                result.objective_max_deviation,
+                result.objective_max_overstaff,
                 generated_at,
             ),
         )

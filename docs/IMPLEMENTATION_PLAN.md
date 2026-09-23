@@ -1,10 +1,27 @@
 # ホテル清掃スタッフ月間シフト自動作成アプリ
-## MVP 実装計画書 v1.3
+## MVP 実装計画書 v1.4
 ### Claude Code実装版
 
 ---
 
 # 変更履歴
+
+## v1.4（v1.3からの変更）
+
+運用データで「目標勤務日数の合計 > 必要人数の合計」のとき、不足が特定スタッフに偏る
+（例：1名だけ所定との差 -11）問題が見つかったため、ユーザー承認のうえで最適化方針を変更。
+
+- §23 / §29 / §32 変更：`required_total_staff` の表示名を「必要人数」→「最低人数」に変更。
+  意味はHard下限（HC03）のまま。所定勤務日数を満たすため最大人数（HC05）まで超えてよい
+- §31 変更：最適化優先順位を4段階から5段階へ変更
+  （目標差合計 → 目標差の最大値 → 日別超過人数の最大値 → PREFER_OFF → PREFER_WORK）
+- §32〜§35 変更：各Stageの定義を更新。旧Stage 1（過剰配置合計の最小化）は廃止し、
+  過剰配置合計は解の実績値として `objective_overstaff` に保存する
+- §25 / §41 変更：`objective_max_deviation`、`objective_max_overstaff` を追加
+- §38.4 変更：`completed_stage` は 0〜5
+- §38 追記（v1.3実装時の変更の明記）：`cp_model_presolve = False`。
+  `num_workers = 1` では presolve 後に自明な目的値下界を証明できず、小規模でも時間切れになるため
+- 必要人数0（最低人数0）は引き続き休館日（HC04: 出勤0）
 
 ## v1.3（v1.2からの変更）
 
@@ -639,10 +656,14 @@ objective_overstaff INTEGER NULL
 objective_target_deviation INTEGER NULL
 objective_prefer_off INTEGER NULL
 objective_prefer_work INTEGER NULL
+objective_max_deviation INTEGER NULL      -- v1.4
+objective_max_overstaff INTEGER NULL      -- v1.4
 
 generated_at TEXT NULL
 confirmed_at TEXT NULL
 ```
+
+`objective_overstaff` は v1.4 以降、最適化対象ではなく「最低人数を超える出勤」の合計（実績値）。
 
 status：
 
@@ -854,23 +875,30 @@ x[s,d] = 0
 
 # 31. 最適化優先順位
 
+v1.4 で変更（変更履歴参照）。
+
 ```text
 Stage 1
-過剰配置人数最小化
+所定勤務日数との差の合計を最小化
 
 ↓
 
 Stage 2
-所定勤務日数との差最小化
+所定勤務日数との差の最大値を最小化（公平化）
 
 ↓
 
 Stage 3
-PREFER_OFF違反最小化
+最低人数を超える人数の日別最大値を最小化（平準化）
 
 ↓
 
 Stage 4
+PREFER_OFF違反最小化
+
+↓
+
+Stage 5
 PREFER_WORK未反映最小化
 ```
 
@@ -879,22 +907,6 @@ PREFER_WORK未反映最小化
 ---
 
 # 32. Stage 1
-
-```text
-overstaff[d]
-=
-actual_staff[d]
--
-required_total_staff[d]
-```
-
-```text
-minimize Σ overstaff[d]
-```
-
----
-
-# 33. Stage 2
 
 目標勤務日数：
 
@@ -914,22 +926,47 @@ actual_workdays = Σd x[s,d]
 偏差：
 
 ```text
-abs(actual_workdays - target_workdays)
+deviation[s] = abs(actual_workdays - target_workdays)
 ```
 
-合計を最小化。
+```text
+minimize Σ deviation[s]
+```
+
+最低人数（HC03）・最大人数（HC05）はHard Constraintのため、所定勤務日数を満たすために
+最低人数を超えて出勤させてよい（最大人数まで）。
+
+---
+
+# 33. Stage 2
+
+```text
+minimize max_s deviation[s]
+```
+
+Stage 1 の合計値を維持したまま、不足・超過を特定スタッフに偏らせず均等に分ける。
 
 ---
 
 # 34. Stage 3
 
-PREFER_OFFなのに出勤した件数を最小化。
+```text
+overstaff[d] = actual_staff[d] - required_total_staff[d]   （≥ 0）
+
+minimize max_d overstaff[d]
+```
+
+Stage 1〜2 で勤務日数が決まると overstaff の合計はほぼ決まるため、
+余剰人員を特定の日に集中させず日ごとに平準化する。
+overstaff の合計は `objective_overstaff` として保存・表示する（最適化対象ではない）。
 
 ---
 
-# 35. Stage 4
+# 35. Stage 4 / Stage 5
 
-PREFER_WORKなのに休日になった件数を最小化。
+Stage 4：PREFER_OFFなのに出勤した件数を最小化。
+
+Stage 5：PREFER_WORKなのに休日になった件数を最小化。
 
 ---
 
@@ -1113,10 +1150,11 @@ completed_stage = 2
 
 ```text
 0 = 最適化Stage未完了
-1 = 過剰配置まで
-2 = 所定勤務日数まで
-3 = PREFER_OFFまで
-4 = 全Stage完了
+1 = 所定勤務日数との差（合計）まで
+2 = 所定勤務日数との差（最大値）まで
+3 = 日別超過人数の平準化まで
+4 = PREFER_OFFまで
+5 = 全Stage完了
 ```
 
 StageがFEASIBLE（時間切れで最適性未証明だが解あり）で終わった場合も、そのStageの解は取得済みとして `completed_stage` に数える。
@@ -1211,12 +1249,15 @@ objective_overstaff
 objective_target_deviation
 objective_prefer_off
 objective_prefer_work
+objective_max_deviation      （v1.4）
+objective_max_overstaff      （v1.4）
 ```
 
 - `status`：`OPTIMAL` / `FEASIBLE` / `INFEASIBLE` / `UNKNOWN`
 - `assignments`：`AssignmentResult` の一覧。INFEASIBLE / UNKNOWN時は空
 - `completed_stage`：§38.4
 - 未実行Stageのobjective値は `None`
+- `objective_overstaff` は解があれば常に実績値（最適化対象ではない, v1.4）
 
 ---
 

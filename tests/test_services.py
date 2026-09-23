@@ -59,7 +59,10 @@ def test_generate_and_save(conn):
     month = repo.get_schedule_month(conn, YM)
     assert month.status == "DRAFT"
     assert month.solver_status == "OPTIMAL"
-    assert month.objective_overstaff == 0
+    # 目標 3名x10日=30 > 最低人数 1x28=28 → 最低人数を超える出勤2（v1.4）
+    assert month.objective_target_deviation == 0
+    assert month.objective_overstaff == 2
+    assert month.objective_max_overstaff == 1
     assert services.validate_current_schedule(conn, YM) == []
 
 
@@ -148,7 +151,7 @@ def test_regenerate_keeps_locks_and_overwrites_unlocked_manual(conn):
     assert (locked11.is_working, locked11.is_locked, locked11.source) == (True, True, "MANUAL")
 
     day2 = [a for a in repo.load_assignments(conn, YM) if a.work_date == DATES[1]]
-    assert sum(a.is_working for a in day2) == 1  # 過剰配置は再計算で解消
+    assert sum(a.is_working for a in day2) <= 2  # 全員出勤の未LOCK手動変更は再計算で解消
     assert all(a.source == "OPTIMIZED" and not a.is_locked for a in day2)
     assert services.validate_current_schedule(conn, YM) == []
 
