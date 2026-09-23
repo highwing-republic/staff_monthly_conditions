@@ -22,6 +22,7 @@ def test_solver_settings():
     assert isinstance(c.TOTAL_SOLVE_TIME_LIMIT_SECONDS, float)
     assert c.SOLVER_RANDOM_SEED == 42
     assert c.SOLVER_NUM_WORKERS == 1
+    assert c.SOLVER_CP_MODEL_PRESOLVE is False
 
 
 def test_solver_statuses():

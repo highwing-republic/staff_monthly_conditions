@@ -30,6 +30,9 @@ SOURCE_TYPES = (SOURCE_OPTIMIZED, SOURCE_MANUAL)
 TOTAL_SOLVE_TIME_LIMIT_SECONDS = 10.0
 SOLVER_RANDOM_SEED = 42
 SOLVER_NUM_WORKERS = 1
+# num_workers=1 では presolve 後に目的値の下界証明が進まず、小規模でも時間切れ(FEASIBLE)
+# になるケースがあるため無効化する（本アプリの規模ではpresolve無しの方が速い）
+SOLVER_CP_MODEL_PRESOLVE = False
 
 # Solver結果ステータス（§37）
 SOLVER_STATUS_OPTIMAL = "OPTIMAL"
